@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/Button";
 import { KitchenPrinter } from "@/core/domain/entities/KitchenPrinter";
 import { useAuth } from "@/core/presentation/hooks/useAuth";
+import { useKdsStationManagement } from "@/core/presentation/hooks/useKdsStationManagement";
 import { useKitchenPrinterManagement } from "@/core/presentation/hooks/useKitchenPrinterManagement";
 import { usePosWorkspace } from "@/core/presentation/hooks/usePosWorkspace";
 import { usePrinterConnection } from "@/core/presentation/hooks/usePrinterConnection";
@@ -35,6 +36,11 @@ export function PrinterSettingsPanel() {
     attachCategory,
     detachCategory,
   } = useKitchenPrinterManagement();
+  const {
+    stations,
+    isLoading: stationsLoading,
+    listStations,
+  } = useKdsStationManagement();
   const connection = usePrinterConnection(tenantId, activePosRegisterId);
 
   const [selectedBackendId, setSelectedBackendId] = useState("");
@@ -62,6 +68,16 @@ export function PrinterSettingsPanel() {
       sortOrder: "desc",
     }).catch(() => undefined);
   }, [listPrinters]);
+
+  useEffect(() => {
+    void listStations({
+      page: 1,
+      limit: 200,
+      locationId: activeLocationId || undefined,
+      sortBy: "name",
+      sortOrder: "asc",
+    }).catch(() => undefined);
+  }, [activeLocationId, listStations]);
 
   const reset = () => {
     setSelectedBackendId("");
@@ -512,11 +528,23 @@ export function PrinterSettingsPanel() {
         </div>
         <label className="mt-4 block text-sm text-slate-600">
           {t("settings.printer.stationId")}
-          <input
+          <select
             className={fieldClass}
             value={stationId}
+            disabled={stationsLoading}
             onChange={(event) => setStationId(event.target.value)}
-          />
+          >
+            <option value="">{t("settings.printer.noStation")}</option>
+            {stationId &&
+            !stations.some((station) => station.id === stationId) ? (
+              <option value={stationId}>{stationId}</option>
+            ) : null}
+            {stations.map((station) => (
+              <option key={station.id} value={station.id}>
+                {station.name}
+              </option>
+            ))}
+          </select>
         </label>
 
         {selectedBackendId ? (

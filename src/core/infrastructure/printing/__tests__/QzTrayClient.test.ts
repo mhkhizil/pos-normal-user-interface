@@ -33,6 +33,13 @@ describe("QzTrayClient", () => {
     mocks.print.mockResolvedValue(undefined);
   });
 
+  it("keeps a blocked-site error instead of saying QZ Tray is stopped", async () => {
+    mocks.connect.mockRejectedValue(new Error("Connection blocked by user"));
+    const client = new QzTrayClient();
+
+    await expect(client.connect()).rejects.toThrow(/Click Allow/);
+  });
+
   it("discovers installed printer queues", async () => {
     const client = new QzTrayClient();
 

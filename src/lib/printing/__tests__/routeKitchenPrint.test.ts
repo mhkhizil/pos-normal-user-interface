@@ -54,6 +54,31 @@ describe("station print routing", () => {
     expect(plan.jobs[1].binding.id).toBe("food-printer");
   });
 
+  it("prints items with no station match on the default printer", () => {
+    const fallback = binding("main", "printer-main");
+    const plan = groupKitchenJobs(
+      [{ name: "Soup", quantity: "1", categoryId: "other" }],
+      [fallback],
+      fallback,
+      undefined,
+      [
+        {
+          id: "bar",
+          name: "Bar",
+          printerId: "printer-bar",
+          categoryIds: ["drink"],
+        },
+      ]
+    );
+
+    expect(plan.unrouted).toEqual([]);
+    expect(plan.jobs).toHaveLength(1);
+    expect(plan.jobs[0].binding.id).toBe("main");
+    expect(plan.jobs[0].lines).toEqual([
+      expect.objectContaining({ name: "Soup" }),
+    ]);
+  });
+
   it("reprints a counter ticket on that station printer", () => {
     const plan = groupKitchenJobs(
       [{ name: "Fried chicken", quantity: "1" }],

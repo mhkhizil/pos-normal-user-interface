@@ -1430,10 +1430,9 @@ export function CashierPage() {
       const printPaidReceipt = async () => {
         try {
           await printer.printReceipt(paidReceipt);
+          return null;
         } catch (printError) {
-          setLocalError(
-            printError instanceof Error ? printError.message : "Print failed"
-          );
+          return printError instanceof Error ? printError.message : "Print failed";
         }
       };
 
@@ -1475,6 +1474,8 @@ export function CashierPage() {
         });
       }
 
+      const printError = await printPaidReceipt();
+
       if (activeTableId && selectedOrder) {
         if (selectedOrderSession && isPrimaryTableOrder) {
           await releasePaidTable(checkoutTableId, checkoutSessionId);
@@ -1482,8 +1483,8 @@ export function CashierPage() {
           setTableOrderIds([]);
           setMultiOrderLines({});
           setActiveTableId(null);
-          await printPaidReceipt();
           await resetWorkspaceAfterTransaction(t("cashier.orderPanel.checkoutSuccess"));
+          if (printError) setLocalError(printError);
           return;
         }
 
@@ -1500,8 +1501,8 @@ export function CashierPage() {
           const nextActiveOrderId = nextIds[nextIds.length - 1];
           await selectOrderById(nextActiveOrderId);
           await refreshMultiOrderLines(nextIds);
-          await printPaidReceipt();
           setNotice(t("cashier.orderPanel.checkoutSuccess"));
+          if (printError) setLocalError(printError);
           setSearchParams({ view: "menu" });
           return;
         }
@@ -1509,9 +1510,9 @@ export function CashierPage() {
         setActiveTableId(null);
       }
 
-      await printPaidReceipt();
       await releasePaidTable(checkoutTableId, checkoutSessionId);
       await resetWorkspaceAfterTransaction(t("cashier.orderPanel.checkoutSuccess"));
+      if (printError) setLocalError(printError);
     } catch (caught) {
       const message =
         caught instanceof Error ? caught.message : t("cashier.errors.checkout");
@@ -1875,6 +1876,7 @@ export function CashierPage() {
         sessionId ? { sessionId } : { salesOrderId: salesOrderId! }
       );
 
+      let kitchenPrintError: string | null = null;
       try {
         const listed = locationId
           ? await listStations({ page: 1, limit: 100, locationId })
@@ -1895,21 +1897,19 @@ export function CashierPage() {
           }))
         );
         if (unrouted.length) {
-          setLocalError(
-            t("cashier.errors.kdsUnrouted", {
-              items: unrouted.map((line) => line.name).join(", "),
-            })
-          );
+          kitchenPrintError = t("cashier.errors.kdsUnrouted", {
+            items: unrouted.map((line) => line.name).join(", "),
+          });
         }
       } catch (printError) {
-        setLocalError(
+        kitchenPrintError =
           printError instanceof Error
             ? printError.message
-            : t("cashier.errors.kdsFailed")
-        );
+            : t("cashier.errors.kdsFailed");
       }
 
       if (activeTableId && tableOrderIds.length > 0 && selectedOrder) {
+        if (kitchenPrintError) setLocalError(kitchenPrintError);
         setNotice(t("cashier.orderPanel.kdsSent"));
         setSearchParams({ view: "menu" });
         return;
@@ -1918,7 +1918,7 @@ export function CashierPage() {
       clearOrderSelection();
       setIsDirectCheckoutMode(false);
       setDirectCartLines([]);
-      setLocalError(null);
+      setLocalError(kitchenPrintError);
       setNotice(t("cashier.orderPanel.kdsSent"));
       setSearchParams({ view: "orders" });
     } catch (caught) {

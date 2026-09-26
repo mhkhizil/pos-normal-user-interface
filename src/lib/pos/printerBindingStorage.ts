@@ -41,6 +41,39 @@ export function readPrinterBindings(
   }
 }
 
+const bindingsFromStore = (store: PrinterBindingStore) => {
+  const bindings = Object.values(store.bindings || {});
+  const savedDefault = store.defaultBindingId
+    ? store.bindings[store.defaultBindingId] || null
+    : null;
+  return {
+    bindings,
+    defaultBinding: savedDefault || bindings[0] || null,
+  };
+};
+
+export function listStoredPrinterBindings(
+  tenantId: string,
+  registerId: string
+): { bindings: PrinterBinding[]; defaultBinding: PrinterBinding | null } {
+  const current = bindingsFromStore(readPrinterBindings(tenantId, registerId));
+  if (current.bindings.length || typeof localStorage === "undefined") return current;
+
+  for (let index = 0; index < localStorage.length; index += 1) {
+    const key = localStorage.key(index);
+    if (!key?.startsWith("pos:printerBindings:")) continue;
+    try {
+      const parsed = JSON.parse(localStorage.getItem(key) || "") as PrinterBindingStore;
+      const found = bindingsFromStore(parsed);
+      if (found.bindings.length) return found;
+    } catch {
+      // Ignore unreadable printer settings from another register.
+    }
+  }
+
+  return current;
+}
+
 const write = (
   tenantId: string,
   registerId: string,

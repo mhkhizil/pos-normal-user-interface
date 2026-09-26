@@ -31,7 +31,8 @@ const bindingForStation = (
 const planFromStations = (
   lines: PrintLine[],
   bindings: PrinterBinding[],
-  stations: StationRoute[]
+  stations: StationRoute[],
+  defaultBinding: PrinterBinding | null
 ): KitchenPrintPlan => {
   const jobs = new Map<string, PrinterJob>();
   const unrouted: PrintLine[] = [];
@@ -40,13 +41,11 @@ const planFromStations = (
     const station = stations.find((item) =>
       item.categoryIds.includes(line.categoryId || "")
     );
-    if (!station) {
+    const binding =
+      (station && bindingForStation(station, bindings)) || defaultBinding;
+    if (!binding) {
       unrouted.push(line);
       continue;
-    }
-    const binding = bindingForStation(station, bindings);
-    if (!binding) {
-      throw new Error(`Connect a printer for ${station.name}`);
     }
     const current = jobs.get(binding.id) || { binding, lines: [] };
     current.lines.push(line);
@@ -92,7 +91,7 @@ export function groupKitchenJobs(
   if (stationId && stations.length) {
     const station = stations.find((item) => item.id === stationId);
     if (station) {
-      const binding = bindingForStation(station, bindings);
+      const binding = bindingForStation(station, bindings) || defaultBinding;
       if (!binding) throw new Error(`Connect a printer for ${station.name}`);
       return {
         jobs: [{ binding, lines }],
@@ -102,7 +101,7 @@ export function groupKitchenJobs(
   }
 
   if (stations.length) {
-    return planFromStations(lines, bindings, stations);
+    return planFromStations(lines, bindings, stations, defaultBinding);
   }
 
   if (!lines.length) {

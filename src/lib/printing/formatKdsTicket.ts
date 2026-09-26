@@ -53,8 +53,12 @@ const itemLines = (lines: PrintLine[] = [], showPrices = false) =>
     })
     .join("");
 
+// 48-dot line spacing is taller than the 24-dot font, so glyphs are not clipped.
+const lineSpacing = `${ESC}3\x30`;
+const bottomMargin = "\n".repeat(6);
+
 const wrap = (body: string) =>
-  [`${ESC}@`, body, "\n\n", `${GS}V\x00`].join("");
+  [`${ESC}@`, lineSpacing, body, bottomMargin, `${GS}V\x00`].join("");
 
 export function formatKitchenSlip(slip: KitchenSlip): string {
   return wrap(
@@ -126,13 +130,15 @@ export function formatKdsTicket(ticket: KdsTicket): string {
 export function formatPrinterTest(name: string): string {
   return [
     `${ESC}@`,
+    lineSpacing,
     `${ESC}a\x01`,
     `${ESC}!\x20`,
     "PRINTER TEST\n",
     `${ESC}!\x00`,
     `${name}\n`,
     "Connection verified\n",
-    `${new Date().toLocaleString()}\n\n\n`,
+    `${new Date().toLocaleString()}`,
+    bottomMargin,
     `${GS}V\x00`,
   ].join("");
 }

@@ -9,6 +9,7 @@ import {
 import {
   PRINTER_BINDINGS_CHANGED,
   PrinterBinding,
+  listStoredPrinterBindings,
   readPrinterBindings,
   removePrinterBinding,
   savePrinterBinding,
@@ -54,6 +55,10 @@ export function usePrinterConnection(tenantId: string, registerId: string) {
       setIsConnecting(false);
     }
   }, []);
+
+  useEffect(() => {
+    void connect().catch(() => undefined);
+  }, [connect]);
 
   const discover = useCallback(async () => {
     setIsConnecting(true);
@@ -106,16 +111,10 @@ export function usePrinterConnection(tenantId: string, registerId: string) {
     [registerId, tenantId]
   );
 
-  const currentBindings = useCallback(() => {
-    const currentStore = readPrinterBindings(tenantId, registerId);
-    const currentDefault = currentStore.defaultBindingId
-      ? currentStore.bindings[currentStore.defaultBindingId] || null
-      : null;
-    return {
-      bindings: Object.values(currentStore.bindings),
-      defaultBinding: currentDefault,
-    };
-  }, [registerId, tenantId]);
+  const currentBindings = useCallback(
+    () => listStoredPrinterBindings(tenantId, registerId),
+    [registerId, tenantId]
+  );
 
   const printKitchen = useCallback(
     async (slip: KitchenSlip, stations: StationRoute[] = []) => {
@@ -140,7 +139,8 @@ export function usePrinterConnection(tenantId: string, registerId: string) {
 
   const printReceipt = useCallback(
     async (receipt: SaleReceipt) => {
-      const target = currentBindings().defaultBinding;
+      const current = currentBindings();
+      const target = current.defaultBinding || current.bindings[0] || null;
       if (!target) throw new Error("No default printer is connected");
       await qzTrayClient.printReceipt(target, {
         ...receipt,

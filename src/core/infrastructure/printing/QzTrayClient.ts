@@ -12,7 +12,16 @@ import {
 
 const qzError = (caught: unknown): Error => {
   const message = caught instanceof Error ? caught.message : String(caught || "");
-  if (/connection|socket|qz/i.test(message)) {
+  if (/block|denied|reject|not allowed/i.test(message)) {
+    return new Error(
+      "QZ Tray blocked this site. Click Allow on the QZ Tray prompt, then try again."
+    );
+  }
+  if (
+    /ECONNREFUSED|Unable to establish connection|WebSocket connection failed|Connection closed before/i.test(
+      message
+    )
+  ) {
     return new Error(
       "QZ Tray is not running. Install and open QZ Tray, then try again."
     );
@@ -21,21 +30,29 @@ const qzError = (caught: unknown): Error => {
 };
 
 export class QzTrayClient {
+  private connecting: Promise<void> | null = null;
+
   isConnected(): boolean {
     return qz.websocket.isActive();
   }
 
-  async connect(): Promise<void> {
-    if (this.isConnected()) return;
-    try {
-      await qz.websocket.connect({
-        retries: 2,
+  connect(): Promise<void> {
+    if (this.isConnected()) return Promise.resolve();
+    if (this.connecting) return this.connecting;
+    this.connecting = qz.websocket
+      .connect({
+        host: "localhost",
+        retries: 5,
         delay: 1,
         usingSecure: window.location.protocol === "https:",
+      })
+      .catch((caught: unknown) => {
+        throw qzError(caught);
+      })
+      .finally(() => {
+        this.connecting = null;
       });
-    } catch (caught) {
-      throw qzError(caught);
-    }
+    return this.connecting;
   }
 
   async disconnect(): Promise<void> {
