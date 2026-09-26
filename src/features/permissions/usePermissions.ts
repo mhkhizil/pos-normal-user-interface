@@ -15,6 +15,7 @@ export const PAGE_PERMISSIONS = {
   cards: [] as string[],
   cashier: [] as string[],
   ktv: [] as string[],
+  spa: ["hospitality:spa-room:read"],
   waitlist: [] as string[],
   tipPools: [] as string[],
   counterOrders: [] as string[],
@@ -26,6 +27,7 @@ export const PAGE_PERMISSIONS = {
 export const PERMISSION_ROUTE_ORDER = [
   { path: "/cashier", permissions: PAGE_PERMISSIONS.cashier },
   { path: "/ktv", permissions: PAGE_PERMISSIONS.ktv },
+  { path: "/spa", permissions: PAGE_PERMISSIONS.spa },
   { path: "/counter-orders", permissions: PAGE_PERMISSIONS.counterOrders },
   { path: "/sales-orders", permissions: PAGE_PERMISSIONS.salesOrders },
   { path: "/customers", permissions: PAGE_PERMISSIONS.customers },

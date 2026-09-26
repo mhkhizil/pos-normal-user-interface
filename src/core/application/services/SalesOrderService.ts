@@ -9,6 +9,8 @@ import {
   UpdateSalesOrderDTO,
   UpdateSalesOrderLineDTO,
   UpsertSalesOrderLineDTO,
+  SettleSalesOrderDTO,
+  SettleSalesOrderResultDTO,
   VoidSalesOrderLineDTO,
 } from "../dtos/SalesOrderDTO";
 import { SalesOrder, SalesOrderLine } from "../../domain/entities/Cashier";
@@ -44,6 +46,15 @@ export class SalesOrderService implements ISalesOrderService {
   async deleteSalesOrder(id: string): Promise<SalesOrder> {
     if (!id?.trim()) throw new Error("Sales order ID is required");
     return this.salesOrderRepository.deleteSalesOrder(id);
+  }
+
+  async settleSalesOrder(
+    id: string,
+    payload: SettleSalesOrderDTO
+  ): Promise<SettleSalesOrderResultDTO> {
+    if (!id?.trim()) throw new Error("Sales order ID is required");
+    if (!payload.payments.length) throw new Error("At least one payment is required");
+    return this.salesOrderRepository.settleSalesOrder(id, payload);
   }
 
   async getSalesOrderLines(

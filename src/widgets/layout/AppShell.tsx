@@ -37,6 +37,14 @@ function KtvIcon() {
   );
 }
 
+function SpaIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={iconClass} aria-hidden="true">
+      <path d="M12 3c2 3 3 5 3 7a3 3 0 0 1-6 0c0-2 1-4 3-7zM4 14c3 0 5 2 8 6 3-4 5-6 8-6" />
+    </svg>
+  );
+}
+
 function UsersIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={iconClass} aria-hidden="true">
@@ -123,6 +131,7 @@ export function AppShell() {
   const isPosWorkspace = [
     "/cashier",
     "/ktv",
+    "/spa",
     "/sales-orders",
     "/waitlist",
     "/tip-pools",
@@ -164,6 +173,12 @@ export function AppShell() {
       label: t("shell.ktvTitle"),
       icon: <KtvIcon />,
       visible: canAccess(PAGE_PERMISSIONS.ktv),
+    },
+    {
+      to: "/spa",
+      label: t("shell.spaTitle"),
+      icon: <SpaIcon />,
+      visible: canAccess(PAGE_PERMISSIONS.spa),
     },
     {
       to: "/counter-orders",

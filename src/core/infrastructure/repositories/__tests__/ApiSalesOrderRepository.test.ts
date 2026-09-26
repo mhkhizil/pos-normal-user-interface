@@ -57,4 +57,35 @@ describe("ApiSalesOrderRepository", () => {
       sku: "TEA-L",
     });
   });
+
+  it("settles a bill through the settle endpoint and reads the result", async () => {
+    const post = vi.fn().mockResolvedValue({
+      data: {
+        orderId: "order-1",
+        orderNumber: "SO-001",
+        grandTotal: "58425.0000",
+        totalPaid: "58425.0000",
+        change: "0.0000",
+        status: "COMPLETED",
+      },
+    });
+    const repository = new ApiSalesOrderRepository({ post } as unknown as HttpClient);
+    const payload = {
+      payments: [{ paymentMethodId: "card-method", guestCardId: "card-1" }],
+      posSessionId: "pos-1",
+      idempotencyKey: "spa-settle-session-1",
+    };
+
+    const result = await repository.settleSalesOrder("order-1", payload);
+
+    expect(post).toHaveBeenCalledWith("/api/v1/sales-orders/order-1/settle", payload);
+    expect(result).toEqual({
+      orderId: "order-1",
+      orderNumber: "SO-001",
+      grandTotal: "58425.0000",
+      totalPaid: "58425.0000",
+      change: "0.0000",
+      status: "COMPLETED",
+    });
+  });
 });

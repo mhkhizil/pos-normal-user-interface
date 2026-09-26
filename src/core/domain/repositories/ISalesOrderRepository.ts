@@ -8,6 +8,8 @@ import {
   UpdateSalesOrderLineDTO,
   UpsertSalesOrderLineDTO,
   VoidSalesOrderLineDTO,
+  SettleSalesOrderDTO,
+  SettleSalesOrderResultDTO,
 } from "../../application/dtos/SalesOrderDTO";
 import { SalesOrder, SalesOrderLine } from "../entities/Cashier";
 
@@ -17,6 +19,10 @@ export interface ISalesOrderRepository {
   createSalesOrder(payload: CreateSalesOrderDTO): Promise<SalesOrder>;
   updateSalesOrder(id: string, payload: UpdateSalesOrderDTO): Promise<SalesOrder>;
   deleteSalesOrder(id: string): Promise<SalesOrder>;
+  settleSalesOrder(
+    id: string,
+    payload: SettleSalesOrderDTO
+  ): Promise<SettleSalesOrderResultDTO>;
   getSalesOrderLines(
     salesOrderId: string,
     params?: SalesOrderFilterDTO

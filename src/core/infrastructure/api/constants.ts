@@ -143,6 +143,7 @@ export const API_ENDPOINTS = {
     CREATE: "/api/v1/sales-orders",
     UPDATE: (id: string) => `/api/v1/sales-orders/${id}`,
     DELETE: (id: string) => `/api/v1/sales-orders/${id}`,
+    SETTLE: (id: string) => `/api/v1/sales-orders/${id}/settle`,
     LINES: (salesOrderId: string) => ({
       LIST: `/api/v1/sales-orders/${salesOrderId}/lines`,
       CREATE: `/api/v1/sales-orders/${salesOrderId}/lines`,
@@ -231,6 +232,21 @@ export const API_ENDPOINTS = {
     PAUSE: (id: string) => `/api/v1/ktv-sessions/${id}/pause`,
     RESUME: (id: string) => `/api/v1/ktv-sessions/${id}/resume`,
     CLOSE: (id: string) => `/api/v1/ktv-sessions/${id}/close`,
+  },
+  SPA_ROOMS: {
+    CREATE: "/api/v1/spa-rooms",
+    BOARD: "/api/v1/spa-rooms/board",
+    UPDATE: (id: string) => `/api/v1/spa-rooms/${id}`,
+    DELETE: (id: string) => `/api/v1/spa-rooms/${id}`,
+    READY: (id: string) => `/api/v1/spa-rooms/${id}/ready`,
+  },
+
+  SPA_SESSIONS: {
+    CREATE: "/api/v1/spa-sessions",
+    QUOTE: (id: string) => `/api/v1/spa-sessions/${id}/quote`,
+    PAUSE: (id: string) => `/api/v1/spa-sessions/${id}/pause`,
+    RESUME: (id: string) => `/api/v1/spa-sessions/${id}/resume`,
+    CLOSE: (id: string) => `/api/v1/spa-sessions/${id}/close`,
   },
   ROOM_TABLET: {
     MENU: "/api/v1/room-tablet/menu",

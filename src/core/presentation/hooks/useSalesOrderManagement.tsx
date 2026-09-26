@@ -8,6 +8,8 @@ import {
   UpdateSalesOrderDTO,
   UpdateSalesOrderLineDTO,
   UpsertSalesOrderLineDTO,
+  SettleSalesOrderDTO,
+  SettleSalesOrderResultDTO,
   VoidSalesOrderLineDTO,
 } from "../../application/dtos/SalesOrderDTO";
 import { SalesOrder, SalesOrderLine } from "../../domain/entities/Cashier";
@@ -29,6 +31,10 @@ interface UseSalesOrderManagementReturn {
   createOrder: (payload: CreateSalesOrderDTO) => Promise<SalesOrder>;
   updateOrder: (id: string, payload: UpdateSalesOrderDTO) => Promise<SalesOrder>;
   deleteOrder: (id: string) => Promise<SalesOrder>;
+  settleOrder: (
+    id: string,
+    payload: SettleSalesOrderDTO
+  ) => Promise<SettleSalesOrderResultDTO>;
   fetchOrderLines: (
     salesOrderId: string,
     params?: SalesOrderFilterDTO
@@ -165,6 +171,24 @@ export function useSalesOrderManagement(): UseSalesOrderManagementReturn {
       } catch (err) {
         const message =
           err instanceof Error ? err.message : "Failed to update sales order";
+        setError(message);
+        throw err;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [clearError, salesOrderService]
+  );
+
+  const settleOrder = useCallback(
+    async (id: string, payload: SettleSalesOrderDTO) => {
+      try {
+        setIsLoading(true);
+        clearError();
+        return await salesOrderService.settleSalesOrder(id, payload);
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Failed to settle sales order";
         setError(message);
         throw err;
       } finally {
@@ -341,6 +365,7 @@ export function useSalesOrderManagement(): UseSalesOrderManagementReturn {
     createOrder,
     updateOrder,
     deleteOrder,
+    settleOrder,
     fetchOrderLines,
     addOrderLine,
     updateOrderLine,

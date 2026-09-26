@@ -41,6 +41,11 @@ const KtvRoomPage = lazy(() =>
     default: module.KtvRoomPage,
   }))
 );
+const SpaBoardPage = lazy(() =>
+  import("../../pages/SpaBoardPage").then((module) => ({
+    default: module.SpaBoardPage,
+  }))
+);
 const WaitlistPage = lazy(() =>
   import("../../pages/WaitlistPage").then((module) => ({
     default: module.WaitlistPage,
@@ -226,6 +231,14 @@ export function AppRouter() {
                 element={
                   <RequirePermission requiredPermissions={PAGE_PERMISSIONS.ktv}>
                     <KtvRoomPage />
+                  </RequirePermission>
+                }
+              />
+              <Route
+                path="/spa"
+                element={
+                  <RequirePermission requiredPermissions={PAGE_PERMISSIONS.spa}>
+                    <SpaBoardPage />
                   </RequirePermission>
                 }
               />

@@ -55,6 +55,10 @@ import { IKtvRepository } from "../../domain/repositories/IKtvRepository";
 import { ApiKtvRepository } from "../repositories/ApiKtvRepository";
 import { IKtvService } from "../../domain/services/IKtvService";
 import { KtvService } from "../../application/services/KtvService";
+import { ISpaRepository } from "../../domain/repositories/ISpaRepository";
+import { ApiSpaRepository } from "../repositories/ApiSpaRepository";
+import { ISpaService } from "../../domain/services/ISpaService";
+import { SpaService } from "../../application/services/SpaService";
 
 /**
  * Dependency Injection Container
@@ -128,6 +132,10 @@ class Container {
       "ktvRepository",
       new ApiKtvRepository(this.resolve("httpClient"))
     );
+    this.register<ISpaRepository>(
+      "spaRepository",
+      new ApiSpaRepository(this.resolve("httpClient"))
+    );
 
     this.register<IAuthService>(
       "authService",
@@ -186,6 +194,10 @@ class Container {
     this.register<IKtvService>(
       "ktvService",
       new KtvService(this.resolve("ktvRepository"))
+    );
+    this.register<ISpaService>(
+      "spaService",
+      new SpaService(this.resolve("spaRepository"))
     );
   }
 
