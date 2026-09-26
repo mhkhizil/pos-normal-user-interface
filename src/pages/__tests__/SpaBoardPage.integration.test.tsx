@@ -459,17 +459,17 @@ describe("SpaBoardPage", () => {
     for (let i = 0; i < 4; i += 1) {
       fireEvent.click(screen.getByRole("button", { name: "spa.moreSessions" }));
     }
-    fireEvent.click(await screen.findByRole("button", { name: "spa.addService" }));
     fireEvent.click(await screen.findByRole("button", { name: "spa.startAndPay" }));
     await tapCard();
 
+    await waitFor(() => expect(mocks.openSession).toHaveBeenCalled());
+    expect(mocks.openSession.mock.calls[0][0]).not.toHaveProperty("items");
     await waitFor(() =>
       expect(mocks.openSession).toHaveBeenCalledWith(
         expect.objectContaining({
           roomId: "room-1",
           guestWalletId: "wallet-1",
           sessions: 5,
-          items: [{ variantId: "variant-scrub", quantity: 1 }],
           prepay: expect.objectContaining({
             guestCardId: "card-1",
             paymentMethodId: "card-method",

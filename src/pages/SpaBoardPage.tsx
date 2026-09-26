@@ -151,7 +151,6 @@ export function SpaBoardPage() {
   const [showRoomForm, setShowRoomForm] = useState(false);
   const [editingRoom, setEditingRoom] = useState<SpaRoom | null>(null);
   const [roomForm, setRoomForm] = useState(emptyRoomForm);
-  const [startItems, setStartItems] = useState<PendingItem[]>([]);
   const [showFoc, setShowFoc] = useState(false);
   const [focReasonId, setFocReasonId] = useState("");
   const [isGivingFoc, setIsGivingFoc] = useState(false);
@@ -202,22 +201,7 @@ export function SpaBoardPage() {
     () => products.filter((product) => !rateProductIds.has(product.id)),
     [products, rateProductIds]
   );
-  const serviceGroups = useMemo(
-    () =>
-      menuProducts
-        .filter(
-          (product) =>
-            product.trackingType === "SERVICE" &&
-            !/ktv|karaoke/i.test(product.categoryName || "")
-        )
-        .reduce<Record<string, Product[]>>((groups, product) => {
-          (groups[product.categoryName || t("spa.otherServices")] ||= []).push(product);
-          return groups;
-        }, {}),
-    [menuProducts, t]
-  );
-  const startCharge =
-    (roomSessionPrice || 0) * sessionCount + pendingTotal(startItems);
+  const startCharge = (roomSessionPrice || 0) * sessionCount;
   const visibleRooms = useMemo(
     () =>
       rooms.filter((item) => {
@@ -360,7 +344,6 @@ export function SpaBoardPage() {
     clearQuote();
     setGuestCount("1");
     setSessionCount(1);
-    setStartItems([]);
     const running = next.sessions.filter(isOpenSpaSession);
     if (running.length === 1) {
       void selectSession(running[0]);
@@ -412,21 +395,12 @@ export function SpaBoardPage() {
         guestWalletId: payer.id,
         guestCount: Math.max(1, Number(guestCount) || 1),
         sessions: sessionCount,
-        ...(startItems.length
-          ? {
-              items: startItems.map((item) => ({
-                variantId: item.variantId,
-                quantity: item.quantity,
-              })),
-            }
-          : {}),
         prepay: charge,
         posRegisterId: context.posRegisterId,
         openedByPosSessionId: context.posSessionId,
         salesChannel: "POS",
       });
       tapKeys.current.open = undefined;
-      setStartItems([]);
       await fetchBoard();
       await selectSession(created);
       setWallet(await getWallet(payer.id));
@@ -634,33 +608,6 @@ export function SpaBoardPage() {
         Math.max(1, quantity)
       )
     );
-  };
-
-  const addStartService = async (product: Product, delta: number) => {
-    const existing = startItems.find((item) => item.productId === product.id);
-    if (existing) {
-      setStartItems((current) => changePending(current, existing.variantId, delta));
-      return;
-    }
-    if (delta < 0) return;
-    setActionError(null);
-    try {
-      const variants = variantsByProductId[product.id]?.length
-        ? variantsByProductId[product.id]
-        : await fetchProductVariants(product.id);
-      const variant = variants[0];
-      if (!variant) throw new Error(t("cashier.productMenu.noVariant"));
-      setStartItems((current) =>
-        addPending(current, {
-          variantId: variant.id,
-          productId: product.id,
-          name: product.name,
-          unitPrice: Number(product.basePrice || 0) + Number(variant.priceModifier || 0),
-        })
-      );
-    } catch (caught) {
-      setActionError(caught instanceof Error ? caught.message : t("spa.errors.editLine"));
-    }
   };
 
   const addAnother = (line: SalesOrderLine) => {
@@ -997,58 +944,6 @@ export function SpaBoardPage() {
                   ? ` · ${money(roomSessionPrice * sessionCount)}`
                   : ""}
               </p>
-              {Object.keys(serviceGroups).length ? (
-                <div className="space-y-2">
-                  <p className="text-sm text-slate-300">{t("spa.chooseServices")}</p>
-                  <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
-                    {Object.entries(serviceGroups).map(([group, services]) => (
-                      <div key={group}>
-                        <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                          {group}
-                        </p>
-                        {services.map((service) => {
-                          const chosen = startItems.find(
-                            (item) => item.productId === service.id
-                          );
-                          return (
-                            <div
-                              key={service.id}
-                              className="flex items-center justify-between gap-2 py-1 text-sm"
-                            >
-                              <span className="min-w-0 flex-1 truncate">{service.name}</span>
-                              <span className="shrink-0 text-slate-400">
-                                {money(service.basePrice)}
-                              </span>
-                              <div className="flex shrink-0 items-center rounded bg-slate-800">
-                                <button
-                                  type="button"
-                                  aria-label={t("spa.decreaseNew")}
-                                  className="h-8 w-8 disabled:opacity-40"
-                                  disabled={!chosen}
-                                  onClick={() => void addStartService(service, -1)}
-                                >
-                                  −
-                                </button>
-                                <span className="w-6 text-center text-xs font-semibold">
-                                  {chosen?.quantity || 0}
-                                </span>
-                                <button
-                                  type="button"
-                                  aria-label={t("spa.addService", { name: service.name })}
-                                  className="h-8 w-8"
-                                  onClick={() => void addStartService(service, 1)}
-                                >
-                                  +
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
               <label className="block text-sm text-slate-300">
                 {t("spa.guestCountLabel")}
                 <input
@@ -1258,20 +1153,6 @@ export function SpaBoardPage() {
                   <span>{money(roomSessionPrice * sessionCount)}</span>
                 ) : null}
               </p>
-              {startItems.map((item) => (
-                <p key={item.variantId} className="flex justify-between">
-                  <span>
-                    {item.name} × {item.quantity}
-                  </span>
-                  <span>{money(item.unitPrice * item.quantity)}</span>
-                </p>
-              ))}
-              {roomSessionPrice !== undefined ? (
-                <p className="mt-1 flex justify-between border-t border-slate-800 pt-1 font-semibold">
-                  <span>{t("spa.toPay")}</span>
-                  <span>{money(startCharge)}</span>
-                </p>
-              ) : null}
             </>
           ) : (
             <p className="flex justify-between font-semibold">
