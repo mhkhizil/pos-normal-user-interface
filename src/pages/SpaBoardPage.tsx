@@ -1,6 +1,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { Button } from "@/components/ui/Button";
 import { SettleSalesOrderResultDTO } from "@/core/application/dtos/SalesOrderDTO";
 import {
@@ -25,8 +26,11 @@ import {
 import {
   addPending,
   changePending,
+  focPending,
+  paidPending,
   PendingItem,
   pendingTotal,
+  toggleOneFoc,
 } from "@/lib/spa/pending";
 import {
   findActiveSpaSession,
@@ -66,7 +70,7 @@ const emptyRoomForm = {
   roomNumber: "",
   name: "",
   capacity: "1",
-  rateVariantId: "",
+  sessionPrice: "",
   treatmentMinutes: "60",
   graceMinutes: "15",
 };
@@ -95,6 +99,7 @@ export function SpaBoardPage() {
     closeSession,
     extendSession,
     chargeItems,
+    giveFree,
     refundLine,
     clearQuote,
   } = useSpaManagement();
@@ -102,6 +107,8 @@ export function SpaBoardPage() {
     products,
     variantsByProductId,
     paymentMethods,
+    discountReasons,
+    fetchDiscountReasons,
     fetchProducts,
     fetchProductVariants,
     fetchPaymentMethods,
@@ -147,6 +154,9 @@ export function SpaBoardPage() {
   const [showRoomForm, setShowRoomForm] = useState(false);
   const [editingRoom, setEditingRoom] = useState<SpaRoom | null>(null);
   const [roomForm, setRoomForm] = useState(emptyRoomForm);
+  const [showFoc, setShowFoc] = useState(false);
+  const [focReasonId, setFocReasonId] = useState("");
+  const [isGivingFoc, setIsGivingFoc] = useState(false);
 
   const room = rooms.find((item) => item.id === selectedRoomId) || null;
   const openSessions = useMemo(
@@ -185,49 +195,16 @@ export function SpaBoardPage() {
       }, {}),
     [pending]
   );
-  const treatmentOptions = useMemo(() => {
-    const spaFirst = (name?: string) => (/spa|treat|massage/i.test(name || "") ? 0 : 1);
-    const typed = products.some((product) => product.trackingType);
-    const isTreatment = (product: Product) =>
-      !/ktv|karaoke/i.test(product.categoryName || "") &&
-      (typed
-        ? product.trackingType === "SERVICE"
-        : /spa|treat|massage/i.test(product.categoryName || ""));
-    return products
-      .filter(isTreatment)
-      .sort(
-        (left, right) =>
-          spaFirst(left.categoryName) - spaFirst(right.categoryName) ||
-          (left.categoryName || "").localeCompare(right.categoryName || "") ||
-          left.name.localeCompare(right.name)
-      )
-      .flatMap((product) => {
-        const variants = variantsByProductId[product.id] || [];
-        return variants.map((variant) => ({
-          value: variant.id,
-          group: product.categoryName || t("spa.otherProducts"),
-          price: Number(product.basePrice || 0) + Number(variant.priceModifier || 0),
-          label: `${product.name}${
-            variants.length > 1 && variant.variantSku ? ` · ${variant.variantSku}` : ""
-          } — ${money(Number(product.basePrice || 0) + Number(variant.priceModifier || 0))}`,
-          minutes: Number(/(\d+)\s*min/i.exec(product.name)?.[1] || 0),
-        }));
-      });
-  }, [products, t, variantsByProductId]);
-  const treatmentGroups = useMemo(
-    () =>
-      treatmentOptions.reduce<Record<string, typeof treatmentOptions>>((groups, option) => {
-        (groups[option.group] ||= []).push(option);
-        return groups;
-      }, {}),
-    [treatmentOptions]
+  const roomSessionPrice = room?.sessionPrice;
+  const rateProductIds = useMemo(
+    () => new Set(rooms.map((item) => item.rateProductId).filter(Boolean)),
+    [rooms]
   );
-  const selectedTreatment = treatmentOptions.find(
-    (option) => option.value === roomForm.rateVariantId
+  const menuProducts = useMemo(
+    () => products.filter((product) => !rateProductIds.has(product.id)),
+    [products, rateProductIds]
   );
-  const roomSessionPrice = treatmentOptions.find(
-    (option) => option.value === room?.rateVariantId
-  )?.price;
+  const startCharge = (roomSessionPrice || 0) * sessionCount;
   const visibleRooms = useMemo(
     () =>
       rooms.filter((item) => {
@@ -296,32 +273,6 @@ export function SpaBoardPage() {
     }, 60000);
     return () => window.clearInterval(timer);
   }, [billClosed, getQuote, session, step]);
-
-  const requestedVariants = useRef(new Set<string>());
-  const needsTreatmentPrices = showRoomForm || step === "sessions";
-  useEffect(() => {
-    if (!needsTreatmentPrices) return;
-    let cancelled = false;
-    const missing = products.filter(
-      (product) =>
-        !variantsByProductId[product.id] && !requestedVariants.current.has(product.id)
-    );
-    void (async () => {
-      for (const product of missing) {
-        if (cancelled) return;
-        requestedVariants.current.add(product.id);
-        try {
-          await fetchProductVariants(product.id);
-        } catch {
-          requestedVariants.current.delete(product.id);
-        }
-        await new Promise((resolve) => window.setTimeout(resolve, 400));
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [fetchProductVariants, needsTreatmentPrices, products, variantsByProductId]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNowMs(Date.now()), 30000);
@@ -487,7 +438,8 @@ export function SpaBoardPage() {
   };
 
   const commitPending = async (payer: GuestWallet, payerCard: GuestCard, force = false) => {
-    if (!session?.salesOrderId || billClosed || !pending.length) return;
+    const toPay = paidPending(pending);
+    if (!session?.salesOrderId || billClosed || !toPay.length) return;
     const prepaid = Boolean(quote?.prepaid);
     const estimate = estimateCardCharge({
       runningTotal: (prepaid ? 0 : Number(quote?.runningTotal || 0)) + pendingTotal(pending),
@@ -505,10 +457,10 @@ export function SpaBoardPage() {
         const { charge } = await chargeFrom("add", payerCard);
         const result = await chargeItems(session.id, {
           ...charge,
-          items: pending.map((item) => ({ variantId: item.variantId, quantity: item.quantity })),
+          items: toPay.map((item) => ({ variantId: item.variantId, quantity: item.quantity })),
         });
         tapKeys.current.add = undefined;
-        setPending([]);
+        setPending(focPending);
         showCharged(payer, result.charged, result.balanceAfter);
       } catch (caught) {
         setActionError(caught instanceof Error ? caught.message : t("spa.errors.editLine"));
@@ -521,14 +473,14 @@ export function SpaBoardPage() {
     let remaining = pending;
     let added = 0;
     try {
-      for (const item of pending) {
+      for (const item of toPay) {
         await addOrderLine(session.salesOrderId, {
           variantId: item.variantId,
           quantity: item.quantity.toFixed(4),
           unitPrice: item.unitPrice.toFixed(4),
           lineDiscount: "0.0000",
         });
-        remaining = remaining.filter((entry) => entry.variantId !== item.variantId);
+        remaining = remaining.filter((entry) => entry !== item);
         added += item.quantity;
       }
       setNotice(t("spa.itemsAdded", { count: added }));
@@ -538,6 +490,40 @@ export function SpaBoardPage() {
       setPending(remaining);
       setIsAdding(false);
       await refreshBill(session);
+    }
+  };
+
+  const addPendingToBill = () => {
+    setActionError(null);
+    if (focPending(pending).length) {
+      setShowFoc(true);
+      void fetchDiscountReasons().catch(() => undefined);
+      return;
+    }
+    requestCard("add");
+  };
+
+  const confirmFoc = async () => {
+    const free = focPending(pending);
+    if (!session || !free.length || !focReasonId) return;
+    setActionError(null);
+    setIsGivingFoc(true);
+    try {
+      await giveFree(session.id, {
+        items: free.map((item) => ({ variantId: item.variantId, quantity: item.quantity })),
+        compReasonId: focReasonId,
+      });
+      const count = free.reduce((sum, item) => sum + item.quantity, 0);
+      const rest = paidPending(pending);
+      setPending(rest);
+      setShowFoc(false);
+      setNotice(t("spa.focGiven", { count }));
+      await refreshBill(session);
+      if (rest.length) requestCard("add");
+    } catch (caught) {
+      setActionError(caught instanceof Error ? caught.message : t("spa.errors.foc"));
+    } finally {
+      setIsGivingFoc(false);
     }
   };
 
@@ -665,6 +651,16 @@ export function SpaBoardPage() {
   const removeLine = async (line: SalesOrderLine) => {
     if (!session?.salesOrderId || billClosed) return;
     setActionError(null);
+    if (quote?.prepaid && line.compReasonId) {
+      try {
+        await refundLine(session.id, line.id);
+        await refreshBill(session);
+        setNotice(t("spa.lineRemoved"));
+      } catch (caught) {
+        setActionError(caught instanceof Error ? caught.message : t("spa.errors.editLine"));
+      }
+      return;
+    }
     if (quote?.prepaid) {
       try {
         const result = await refundLine(session.id, line.id);
@@ -771,7 +767,7 @@ export function SpaBoardPage() {
       roomNumber: roomForm.roomNumber.trim(),
       name: roomForm.name.trim(),
       capacity: Number(roomForm.capacity),
-      rateVariantId: roomForm.rateVariantId.trim(),
+      sessionPrice: Number(roomForm.sessionPrice),
       minimumMinutes: minutes,
       incrementMinutes: minutes,
       graceMinutes: Number(roomForm.graceMinutes),
@@ -795,7 +791,7 @@ export function SpaBoardPage() {
       roomNumber: managed.roomNumber,
       name: managed.name,
       capacity: String(managed.capacity),
-      rateVariantId: managed.rateVariantId,
+      sessionPrice: managed.sessionPrice == null ? "" : String(managed.sessionPrice),
       treatmentMinutes: String(managed.minimumMinutes),
       graceMinutes: String(managed.graceMinutes),
     });
@@ -824,7 +820,8 @@ export function SpaBoardPage() {
           <h1 className="text-xl font-bold">{t("spa.boardTitle")}</h1>
           <p className="text-sm text-slate-400">{t(`spa.steps.${step}`)}</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          <LanguageSwitcher />
           {step !== "rooms" && !(step === "pay" && billClosed) && !paid ? (
             <Button variant="secondary" onClick={goBack}>
               {step === "pay" ? t("cardTopup.back") : t("spa.backToBoard")}
@@ -970,7 +967,9 @@ export function SpaBoardPage() {
                 />
               </label>
               <Button type="submit" isLoading={isLoading}>
-                {t("spa.startSession")}
+                {roomSessionPrice !== undefined
+                  ? t("spa.startAndPay", { amount: money(startCharge) })
+                  : t("spa.startSession")}
               </Button>
             </form>
           ) : null}
@@ -1026,13 +1025,15 @@ export function SpaBoardPage() {
               setPending((current) => changePending(current, variantId, delta))
             }
             onClearPending={() => setPending([])}
-            onCommitPending={() => requestCard("add")}
+            onCommitPending={addPendingToBill}
+            onToggleFoc={(key) => setPending((current) => toggleOneFoc(current, key))}
             onChangeCard={forgetCard}
           />
 
           {step === "menu" ? (
             <ProductMenu
-              products={products}
+              products={menuProducts}
+              groupByCategory
               variantsByProductId={variantsByProductId}
               orderedProductQuantities={pendingByProduct}
               onLoadVariants={fetchProductVariants}
@@ -1125,7 +1126,7 @@ export function SpaBoardPage() {
         >
           {cardPrompt === "add" ? (
             <>
-              {pending.map((item) => (
+              {paidPending(pending).map((item) => (
                 <p key={item.variantId} className="flex justify-between">
                   <span>
                     {item.name} × {item.quantity}
@@ -1149,14 +1150,21 @@ export function SpaBoardPage() {
               {roomSessionPrice ? <span>{money(roomSessionPrice * extendCount)}</span> : null}
             </p>
           ) : cardPrompt === "open" ? (
-            <p>
-              {t("spa.startSummary", {
-                room: room?.roomNumber || "",
-                sessions: sessionCount,
-                minutes: sessionCount * sessionMinutes(room),
-                count: Math.max(1, Number(guestCount) || 1),
-              })}
-            </p>
+            <>
+              <p className="flex justify-between gap-2">
+                <span>
+                  {t("spa.startSummary", {
+                    room: room?.roomNumber || "",
+                    sessions: sessionCount,
+                    minutes: sessionCount * sessionMinutes(room),
+                    count: Math.max(1, Number(guestCount) || 1),
+                  })}
+                </span>
+                {roomSessionPrice !== undefined ? (
+                  <span>{money(roomSessionPrice * sessionCount)}</span>
+                ) : null}
+              </p>
+            </>
           ) : (
             <p className="flex justify-between font-semibold">
               <span>{t("spa.runningTotal")}</span>
@@ -1164,6 +1172,67 @@ export function SpaBoardPage() {
             </p>
           )}
         </CardTapDialog>
+      ) : null}
+
+      {showFoc && session ? (
+        <div className="fixed inset-0 z-40 grid place-items-center bg-black/75 p-4">
+          <div className="max-h-[calc(100vh-2rem)] w-full max-w-md space-y-4 overflow-y-auto rounded-lg border border-fuchsia-500 bg-slate-950 p-5">
+            <div>
+              <h2 className="text-lg font-bold">
+                {t("spa.focTitle", { room: room?.roomNumber || "" })}
+              </h2>
+              <p className="mt-1 text-sm text-slate-400">{t("spa.focDescription")}</p>
+            </div>
+            <div className="max-h-56 space-y-1 overflow-y-auto rounded border border-slate-800 bg-slate-900/60 p-3 text-sm">
+              {focPending(pending).map((item) => (
+                <p key={item.variantId} className="flex justify-between gap-2">
+                  <span className="truncate">
+                    {item.name} × {item.quantity}
+                  </span>
+                  <span className="shrink-0 text-slate-500 line-through">
+                    {money(item.unitPrice * item.quantity)}
+                  </span>
+                </p>
+              ))}
+              <p className="mt-1 flex justify-between border-t border-slate-800 pt-1 font-semibold">
+                <span>{t("spa.toPay")}</span>
+                <span>0</span>
+              </p>
+            </div>
+            <label className="block text-sm">
+              {t("spa.focReason")}
+              <select
+                value={focReasonId}
+                onChange={(event) => setFocReasonId(event.target.value)}
+                className="mt-1 w-full rounded border border-slate-700 bg-slate-900 px-3 py-2"
+              >
+                <option value="" disabled>
+                  {t("spa.focChooseReason")}
+                </option>
+                {discountReasons.map((reason) => (
+                  <option key={reason.id} value={reason.id}>
+                    {reason.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {discountReasons.length === 0 ? (
+              <p className="text-xs text-amber-300">{t("spa.focNoReasons")}</p>
+            ) : null}
+            <div className="grid grid-cols-2 gap-2">
+              <Button variant="secondary" onClick={() => setShowFoc(false)}>
+                {t("common.cancel")}
+              </Button>
+              <Button
+                isLoading={isGivingFoc}
+                disabled={!focReasonId}
+                onClick={() => void confirmFoc()}
+              >
+                {t("spa.focConfirm")}
+              </Button>
+            </div>
+          </div>
+        </div>
       ) : null}
 
       {showExtend && session ? (
@@ -1293,40 +1362,19 @@ export function SpaBoardPage() {
               </label>
             ))}
             <label className="text-sm">
-              {t("spa.treatment")}
-              <select
-                value={roomForm.rateVariantId}
-                onChange={(event) => {
-                  const option = treatmentOptions.find(
-                    (item) => item.value === event.target.value
-                  );
-                  setRoomForm((current) => ({
-                    ...current,
-                    rateVariantId: event.target.value,
-                    treatmentMinutes: option?.minutes
-                      ? String(option.minutes)
-                      : current.treatmentMinutes,
-                  }));
-                }}
+              {t("spa.sessionPriceLabel")}
+              <input
+                type="number"
+                min={0}
+                step="any"
+                inputMode="decimal"
+                value={roomForm.sessionPrice}
+                onChange={(event) =>
+                  setRoomForm((current) => ({ ...current, sessionPrice: event.target.value }))
+                }
                 className="mt-1 w-full rounded border border-slate-700 bg-slate-900 px-3 py-2"
                 required
-              >
-                <option value="" disabled>
-                  {t("spa.chooseTreatment")}
-                </option>
-                {roomForm.rateVariantId && !selectedTreatment ? (
-                  <option value={roomForm.rateVariantId}>{t("spa.loadingTreatments")}</option>
-                ) : null}
-                {Object.entries(treatmentGroups).map(([group, options]) => (
-                  <optgroup key={group} label={group}>
-                    {options.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
+              />
             </label>
             {(
               [
@@ -1348,37 +1396,14 @@ export function SpaBoardPage() {
                 />
               </label>
             ))}
-            {selectedTreatment?.minutes &&
-            selectedTreatment.minutes !== Number(roomForm.treatmentMinutes) ? (
-              <p className="col-span-2 flex items-center justify-between gap-2 rounded border border-amber-500/60 bg-amber-950/40 p-2 text-xs text-amber-200">
-                <span>
-                  {t("spa.lengthMismatch", {
-                    minutes: selectedTreatment.minutes,
-                    length: roomForm.treatmentMinutes,
-                  })}
-                </span>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() =>
-                    setRoomForm((current) => ({
-                      ...current,
-                      treatmentMinutes: String(selectedTreatment.minutes),
-                    }))
-                  }
-                >
-                  {t("spa.useLength", { minutes: selectedTreatment.minutes })}
-                </Button>
-              </p>
-            ) : null}
             <p className="col-span-2 text-xs text-slate-400">
-              {selectedTreatment
-                ? t("spa.rateSummary", {
-                    treatment: selectedTreatment.label,
+              {roomForm.sessionPrice !== ""
+                ? t("spa.priceSummary", {
+                    price: money(roomForm.sessionPrice),
                     minutes: roomForm.treatmentMinutes,
                     grace: roomForm.graceMinutes,
                   })
-                : t("spa.rateHint")}
+                : t("spa.priceHint")}
             </p>
             <div className="col-span-2 flex justify-end gap-2">
               {editingRoom ? (

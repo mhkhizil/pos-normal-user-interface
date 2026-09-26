@@ -249,6 +249,7 @@ export const API_ENDPOINTS = {
     CLOSE: (id: string) => `/api/v1/spa-sessions/${id}/close`,
     EXTEND: (id: string) => `/api/v1/spa-sessions/${id}/extend`,
     CHARGES: (id: string) => `/api/v1/spa-sessions/${id}/charges`,
+    FOC: (id: string) => `/api/v1/spa-sessions/${id}/foc`,
     REFUND_LINE: (id: string, lineId: string) =>
       `/api/v1/spa-sessions/${id}/lines/${lineId}/refund`,
   },

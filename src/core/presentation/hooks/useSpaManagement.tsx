@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
   ChargeSpaItemsDTO,
+  GiveFreeItemsDTO,
   CloseSpaSessionDTO,
   ExtendSpaSessionDTO,
   CreateSpaRoomDTO,
@@ -150,6 +151,16 @@ export function useSpaManagement() {
     [run, service]
   );
 
+  const giveFree = useCallback(
+    (id: string, payload: GiveFreeItemsDTO) =>
+      run(async () => {
+        const result = await service.giveFree(id, payload);
+        setQuote(result.quote);
+        return result;
+      }),
+    [run, service]
+  );
+
   const refundLine = useCallback(
     (id: string, lineId: string, reason?: string) =>
       run(async () => {
@@ -186,6 +197,7 @@ export function useSpaManagement() {
     closeSession,
     extendSession,
     chargeItems,
+    giveFree,
     refundLine,
     clearQuote: () => setQuote(null),
     clearError: () => setError(null),

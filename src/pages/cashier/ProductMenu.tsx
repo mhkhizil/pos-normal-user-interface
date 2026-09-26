@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/Button";
 import { Product, ProductVariant } from "@/core/domain/entities/Cashier";
@@ -14,6 +14,7 @@ interface ProductMenuProps {
     quantity: number
   ) => Promise<void>;
   onClose: () => void;
+  groupByCategory?: boolean;
 }
 
 const variantLabel = (variant: ProductVariant): string =>
@@ -62,9 +63,11 @@ export function ProductMenu({
   onLoadVariants,
   onAdd,
   onClose,
+  groupByCategory = false,
 }: ProductMenuProps) {
   const { t } = useTranslation();
   const [search, setSearch] = useState("");
+  const [category, setCategory] = useState("");
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedVariantId, setSelectedVariantId] = useState("");
   const [variantOptions, setVariantOptions] = useState<ProductVariant[]>([]);
@@ -73,15 +76,41 @@ export function ProductMenu({
   const [needsVariantChoice, setNeedsVariantChoice] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
+  const categoryOf = useCallback(
+    (product: Product) => product.categoryName || t("cashier.productMenu.otherCategory"),
+    [t]
+  );
+
+  const categories = useMemo(
+    () =>
+      groupByCategory
+        ? [...new Set(products.map(categoryOf))].sort((left, right) =>
+            left.localeCompare(right)
+          )
+        : [],
+    [categoryOf, groupByCategory, products]
+  );
+
   const visibleProducts = useMemo(() => {
     const keyword = search.trim().toLowerCase();
-    if (!keyword) return products;
-    return products.filter((product) =>
-      [product.name, product.baseSku]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(keyword))
+    return products.filter(
+      (product) =>
+        (!category || categoryOf(product) === category) &&
+        (!keyword ||
+          [product.name, product.baseSku]
+            .filter(Boolean)
+            .some((value) => String(value).toLowerCase().includes(keyword)))
     );
-  }, [products, search]);
+  }, [category, categoryOf, products, search]);
+
+  const sections = groupByCategory
+    ? categories
+        .map((name) => ({
+          name,
+          items: visibleProducts.filter((product) => categoryOf(product) === name),
+        }))
+        .filter((section) => section.items.length)
+    : [{ name: "", items: visibleProducts }];
 
   const variants = variantOptions.length
     ? variantOptions
@@ -181,51 +210,78 @@ export function ProductMenu({
         </Button>
       </header>
 
-      <div className="mt-2 grid min-h-0 flex-1 grid-cols-1 gap-2">
-        <div className="grid content-start grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-3 xl:grid-cols-4">
-          {visibleProducts.map((product) => {
-            const orderedQty = Number(orderedProductQuantities[product.id] || 0);
-            const isSelected =
-              selectedProduct?.id === product.id || orderedQty > 0;
-            return (
-              <button
-                key={product.id}
-                type="button"
-                aria-pressed={isSelected}
-                onClick={() => void selectProduct(product)}
-                className={[
-                  "relative overflow-hidden rounded border bg-[#181818] text-left",
-                  isSelected
-                    ? "border-blue-500 ring-2 ring-blue-400 ring-offset-1 ring-offset-[#070707]"
-                    : "border-slate-700",
-                ].join(" ")}
-              >
-                <ProductCardImage
-                  src={productCardImage(product, variantsByProductId)}
-                  name={product.name}
-                />
-                {orderedQty > 0 ? (
-                  <span className="absolute right-2 top-2 rounded bg-blue-600 px-1.5 py-0.5 text-[10px] font-bold text-white">
-                    {orderedQty}
-                  </span>
-                ) : null}
-                <span className="block px-3 py-2">
-                  <span className="block truncate text-sm font-semibold">
-                    {product.name}
-                  </span>
-                  <span className="mt-1 block font-semibold text-blue-400">
-                    {product.basePrice}
-                  </span>
-                </span>
-              </button>
-            );
-          })}
-          {visibleProducts.length === 0 ? (
-            <p className="col-span-full p-6 text-center text-sm text-slate-400">
-              {t("cashier.productMenu.notFound")}
-            </p>
-          ) : null}
+      {groupByCategory && categories.length > 1 ? (
+        <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+          {["", ...categories].map((name) => (
+            <button
+              key={name || "all"}
+              type="button"
+              aria-pressed={category === name}
+              onClick={() => setCategory(name)}
+              className={`shrink-0 rounded-full px-3 py-1.5 text-sm font-semibold ${
+                category === name ? "bg-teal-600 text-white" : "bg-slate-800 text-slate-300"
+              }`}
+            >
+              {name || t("cashier.productMenu.allCategories")}
+            </button>
+          ))}
         </div>
+      ) : null}
+
+      <div className="mt-2 min-h-0 flex-1 space-y-4 overflow-y-auto">
+        {sections.map((section) => (
+          <section key={section.name || "all"}>
+            {section.name ? (
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                {section.name}
+              </h3>
+            ) : null}
+            <div className="grid content-start grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
+              {section.items.map((product) => {
+                const orderedQty = Number(orderedProductQuantities[product.id] || 0);
+                const isSelected =
+                  selectedProduct?.id === product.id || orderedQty > 0;
+                return (
+                  <button
+                    key={product.id}
+                    type="button"
+                    aria-pressed={isSelected}
+                    onClick={() => void selectProduct(product)}
+                    className={[
+                      "relative overflow-hidden rounded border bg-[#181818] text-left",
+                      isSelected
+                        ? "border-blue-500 ring-2 ring-blue-400 ring-offset-1 ring-offset-[#070707]"
+                        : "border-slate-700",
+                    ].join(" ")}
+                  >
+                    <ProductCardImage
+                      src={productCardImage(product, variantsByProductId)}
+                      name={product.name}
+                    />
+                    {orderedQty > 0 ? (
+                      <span className="absolute right-2 top-2 rounded bg-blue-600 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                        {orderedQty}
+                      </span>
+                    ) : null}
+                    <span className="block px-3 py-2">
+                      <span className="block truncate text-sm font-semibold">
+                        {product.name}
+                      </span>
+                      <span className="mt-1 block font-semibold text-blue-400">
+                        {product.basePrice}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        ))}
+        {visibleProducts.length === 0 ? (
+          <p className="p-6 text-center text-sm text-slate-400">
+            {t("cashier.productMenu.notFound")}
+          </p>
+        ) : null}
       </div>
       {localError && !needsVariantChoice ? (
         <p className="mt-2 text-xs text-red-300">{localError}</p>
