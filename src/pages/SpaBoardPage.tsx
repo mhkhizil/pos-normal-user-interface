@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { Button } from "@/components/ui/Button";
+import { toast } from "@/lib/toast";
 import { SettleSalesOrderResultDTO } from "@/core/application/dtos/SalesOrderDTO";
 import {
   findMemberCardPaymentMethod,
@@ -155,7 +156,7 @@ export function SpaBoardPage() {
   const [editingRoom, setEditingRoom] = useState<SpaRoom | null>(null);
   const [roomForm, setRoomForm] = useState(emptyRoomForm);
   const [showFoc, setShowFoc] = useState(false);
-  const [focReasonId, setFocReasonId] = useState("");
+  const [focReason, setFocReason] = useState("");
   const [isGivingFoc, setIsGivingFoc] = useState(false);
 
   const room = rooms.find((item) => item.id === selectedRoomId) || null;
@@ -241,6 +242,22 @@ export function SpaBoardPage() {
     },
     [getWallet, lookupCard, t]
   );
+
+  useEffect(() => {
+    if (!notice) return;
+    toast.success(notice);
+    setNotice(null);
+  }, [notice]);
+
+  useEffect(() => {
+    if (!actionError) return;
+    toast.error(actionError);
+    setActionError(null);
+  }, [actionError]);
+
+  useEffect(() => {
+    if (error) toast.error(error);
+  }, [error]);
 
   useEffect(() => {
     void fetchBoard();
@@ -505,13 +522,13 @@ export function SpaBoardPage() {
 
   const confirmFoc = async () => {
     const free = focPending(pending);
-    if (!session || !free.length || !focReasonId) return;
+    if (!session || !free.length || !focReason.trim()) return;
     setActionError(null);
     setIsGivingFoc(true);
     try {
       await giveFree(session.id, {
         items: free.map((item) => ({ variantId: item.variantId, quantity: item.quantity })),
-        compReasonId: focReasonId,
+        reason: focReason.trim(),
       });
       const count = free.reduce((sum, item) => sum + item.quantity, 0);
       const rest = paidPending(pending);
@@ -840,17 +857,6 @@ export function SpaBoardPage() {
         </div>
       </header>
 
-      {(error || actionError || notice) && (
-        <p
-          className={`my-3 rounded border p-3 text-sm ${
-            actionError || error
-              ? "border-red-500/60 bg-red-950/50 text-red-200"
-              : "border-emerald-500/60 bg-emerald-950/40 text-emerald-200"
-          }`}
-        >
-          {actionError || error || notice}
-        </p>
-      )}
 
       {step === "rooms" ? (
         <>
@@ -860,7 +866,9 @@ export function SpaBoardPage() {
                 key={value}
                 type="button"
                 className={`rounded px-3 py-2 text-sm font-semibold ${
-                  filter === value ? "bg-teal-600" : "bg-slate-800"
+                  filter === value
+                    ? "bg-slate-100 text-slate-900"
+                    : "bg-slate-800 text-slate-300 hover:bg-slate-700"
                 }`}
                 onClick={() => setFilter(value)}
               >
@@ -919,7 +927,7 @@ export function SpaBoardPage() {
           })}
           {openSessions.length === 0 && room.status === "AVAILABLE" ? (
             <form
-              className="space-y-3 rounded-lg border border-teal-500 bg-slate-900 p-4"
+              className="space-y-3 rounded-lg border border-slate-600 bg-slate-900 p-4"
               onSubmit={handleOpenSession}
             >
               <p className="font-bold">{t("spa.newSession", { room: room.roomNumber })}</p>
@@ -946,7 +954,7 @@ export function SpaBoardPage() {
                   </button>
                 </div>
               </div>
-              <p className="text-sm text-teal-300">
+              <p className="text-sm text-slate-300">
                 {t("spa.sessionsSummary", {
                   minutes: sessionCount * sessionMinutes(room),
                   perSession: sessionMinutes(room),
@@ -1041,8 +1049,8 @@ export function SpaBoardPage() {
               onClose={goToPay}
             />
           ) : paid ? (
-            <div className="rounded-lg border border-emerald-500 p-5">
-              <h2 className="text-lg font-bold text-emerald-300">{t("spa.paidTitle")}</h2>
+            <div className="rounded-lg border border-slate-700 bg-slate-900 p-5">
+              <h2 className="text-lg font-semibold text-white">{t("spa.paidTitle")}</h2>
               <p className="mt-3">
                 {t("spa.paidSummary", {
                   amount: money(paid.grandTotal),
@@ -1063,7 +1071,7 @@ export function SpaBoardPage() {
             <div className="space-y-4 rounded-lg border border-slate-700 p-5">
               <h2 className="text-lg font-bold">{t("spa.payTitle")}</h2>
               {wallet?.discountBpsSnapshot ? (
-                <p className="text-sm text-teal-300">
+                <p className="text-sm text-slate-300">
                   {t("spa.memberDiscount", {
                     tier: wallet.tierNameSnapshot,
                     percent: wallet.discountBpsSnapshot / 100,
@@ -1176,7 +1184,7 @@ export function SpaBoardPage() {
 
       {showFoc && session ? (
         <div className="fixed inset-0 z-40 grid place-items-center bg-black/75 p-4">
-          <div className="max-h-[calc(100vh-2rem)] w-full max-w-md space-y-4 overflow-y-auto rounded-lg border border-fuchsia-500 bg-slate-950 p-5">
+          <div className="max-h-[calc(100vh-2rem)] w-full max-w-md space-y-4 overflow-y-auto rounded-lg border border-slate-700 bg-slate-950 p-5">
             <div>
               <h2 className="text-lg font-bold">
                 {t("spa.focTitle", { room: room?.roomNumber || "" })}
@@ -1201,23 +1209,38 @@ export function SpaBoardPage() {
             </div>
             <label className="block text-sm">
               {t("spa.focReason")}
-              <select
-                value={focReasonId}
-                onChange={(event) => setFocReasonId(event.target.value)}
+              <input
+                value={focReason}
+                onChange={(event) => setFocReason(event.target.value)}
+                list="foc-reasons"
+                maxLength={100}
+                placeholder={t("spa.focReasonPlaceholder")}
                 className="mt-1 w-full rounded border border-slate-700 bg-slate-900 px-3 py-2"
-              >
-                <option value="" disabled>
-                  {t("spa.focChooseReason")}
-                </option>
+                autoFocus
+              />
+              <datalist id="foc-reasons">
                 {discountReasons.map((reason) => (
-                  <option key={reason.id} value={reason.id}>
-                    {reason.name}
-                  </option>
+                  <option key={reason.id} value={reason.name} />
                 ))}
-              </select>
+              </datalist>
             </label>
-            {discountReasons.length === 0 ? (
-              <p className="text-xs text-amber-300">{t("spa.focNoReasons")}</p>
+            {discountReasons.length ? (
+              <div className="flex flex-wrap gap-1.5">
+                {discountReasons.slice(0, 6).map((reason) => (
+                  <button
+                    key={reason.id}
+                    type="button"
+                    className={`rounded-full px-2.5 py-1 text-xs ${
+                      focReason === reason.name
+                        ? "bg-slate-100 text-slate-900"
+                        : "bg-slate-800 text-slate-300"
+                    }`}
+                    onClick={() => setFocReason(reason.name)}
+                  >
+                    {reason.name}
+                  </button>
+                ))}
+              </div>
             ) : null}
             <div className="grid grid-cols-2 gap-2">
               <Button variant="secondary" onClick={() => setShowFoc(false)}>
@@ -1225,7 +1248,7 @@ export function SpaBoardPage() {
               </Button>
               <Button
                 isLoading={isGivingFoc}
-                disabled={!focReasonId}
+                disabled={!focReason.trim()}
                 onClick={() => void confirmFoc()}
               >
                 {t("spa.focConfirm")}
@@ -1237,7 +1260,7 @@ export function SpaBoardPage() {
 
       {showExtend && session ? (
         <div className="fixed inset-0 z-40 grid place-items-center bg-black/75 p-4">
-          <div className="w-full max-w-sm space-y-4 rounded-lg border border-teal-500 bg-slate-950 p-5">
+          <div className="w-full max-w-sm space-y-4 rounded-lg border border-slate-700 bg-slate-950 p-5">
             <h2 className="text-lg font-bold">{t("spa.extendTitle", { room: room?.roomNumber || "" })}</h2>
             <div className="flex items-center justify-between">
               <span className="text-sm text-slate-300">{t("spa.moreSessionsLabel")}</span>
@@ -1262,7 +1285,7 @@ export function SpaBoardPage() {
                 </button>
               </div>
             </div>
-            <p className="text-sm text-teal-300">
+            <p className="text-sm text-slate-300">
               {t("spa.sessionsSummary", {
                 minutes: extendCount * sessionMinutes(room),
                 perSession: sessionMinutes(room),
@@ -1302,8 +1325,8 @@ export function SpaBoardPage() {
 
       {balanceWarning ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4">
-          <div className="w-full max-w-md space-y-3 rounded-lg border border-orange-400 bg-slate-950 p-5">
-            <h2 className="text-lg font-bold text-orange-300">{t("spa.insufficientTitle")}</h2>
+          <div className="w-full max-w-md space-y-3 rounded-lg border border-amber-500/50 bg-slate-950 p-5">
+            <h2 className="text-lg font-semibold text-amber-200">{t("spa.insufficientTitle")}</h2>
             <p className="text-sm text-slate-300">
               {t("spa.balanceVsTotal", {
                 balance: money(balanceWarning.balance),

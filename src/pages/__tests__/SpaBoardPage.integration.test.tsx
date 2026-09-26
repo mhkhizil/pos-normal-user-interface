@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import { Toaster } from "@/components/ui/Toaster";
 import { SpaBoardPage } from "../SpaBoardPage";
 
 const mocks = vi.hoisted(() => ({
@@ -193,6 +194,7 @@ const renderPage = () =>
   render(
     <MemoryRouter initialEntries={["/spa"]}>
       <SpaBoardPage />
+      <Toaster />
     </MemoryRouter>
   );
 
@@ -376,14 +378,14 @@ describe("SpaBoardPage", () => {
     const confirm = screen.getByRole("button", { name: "spa.focConfirm" });
     expect(confirm).toBeDisabled();
     fireEvent.change(screen.getByLabelText("spa.focReason"), {
-      target: { value: "reason-foc" },
+      target: { value: "Birthday" },
     });
     fireEvent.click(confirm);
 
     await waitFor(() =>
       expect(mocks.giveFree).toHaveBeenCalledWith("session-1", {
         items: [{ variantId: "variant-scrub", quantity: 1 }],
-        compReasonId: "reason-foc",
+        reason: "Birthday",
       })
     );
     expect(await screen.findByText("spa.focGiven")).toBeInTheDocument();
@@ -400,13 +402,13 @@ describe("SpaBoardPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "spa.addToBillWithFree" }));
 
     fireEvent.change(screen.getByLabelText("spa.focReason"), {
-      target: { value: "reason-foc" },
+      target: { value: "Birthday" },
     });
     fireEvent.click(screen.getByRole("button", { name: "spa.focConfirm" }));
     await waitFor(() =>
       expect(mocks.giveFree).toHaveBeenCalledWith("session-1", {
         items: [{ variantId: "variant-scrub", quantity: 1 }],
-        compReasonId: "reason-foc",
+        reason: "Birthday",
       })
     );
 
@@ -468,11 +470,12 @@ describe("SpaBoardPage", () => {
     expect(mocks.updateRoom.mock.calls[0][1]).not.toHaveProperty("rateVariantId");
   });
 
-  it("shows the menu by category, without the room's own price", async () => {
+  it("filters the menu by category, without the room's own price", async () => {
     await openRunningRoom();
 
     expect(screen.queryByRole("button", { name: /Spa room SUITE1/ })).not.toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Spa Services" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Spa Services" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Foot Scrub/ })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Beer & Spirits" }));
     expect(screen.getByRole("button", { name: /Myanmar Beer/ })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Foot Scrub/ })).not.toBeInTheDocument();
