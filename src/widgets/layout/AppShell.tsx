@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/core/presentation/hooks/useAuth";
 import { usePosWorkspace } from "@/core/presentation/hooks/usePosWorkspace";
 import { usePrinterConnection } from "@/core/presentation/hooks/usePrinterConnection";
@@ -8,6 +8,7 @@ import {
   usePermissions,
 } from "@/features/permissions/usePermissions";
 import { PosActionRail } from "./PosActionRail";
+import { RoomOrderAlerts } from "./RoomOrderAlerts";
 import { PosIconRail, type PosRailItem } from "./PosIconRail";
 
 const iconClass = "h-5 w-5";
@@ -33,6 +34,14 @@ function KtvIcon() {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={iconClass} aria-hidden="true">
       <path d="M5 5h14v14H5zM9 9h6M8 13h8M10 17h4" />
       <circle cx="12" cy="9" r="1" />
+    </svg>
+  );
+}
+
+function SpaIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={iconClass} aria-hidden="true">
+      <path d="M12 3c2 3 3 5 3 7a3 3 0 0 1-6 0c0-2 1-4 3-7zM4 14c3 0 5 2 8 6 3-4 5-6 8-6" />
     </svg>
   );
 }
@@ -117,12 +126,13 @@ export function AppShell() {
     String(user?.tenantId || ""),
     activePosRegisterId
   );
-  const { canAccess } = usePermissions();
+  const { canAccess, isTabletAccount } = usePermissions();
   const navigate = useNavigate();
   const location = useLocation();
   const isPosWorkspace = [
     "/cashier",
     "/ktv",
+    "/spa",
     "/sales-orders",
     "/waitlist",
     "/tip-pools",
@@ -164,6 +174,12 @@ export function AppShell() {
       label: t("shell.ktvTitle"),
       icon: <KtvIcon />,
       visible: canAccess(PAGE_PERMISSIONS.ktv),
+    },
+    {
+      to: "/spa",
+      label: t("shell.spaTitle"),
+      icon: <SpaIcon />,
+      visible: canAccess(PAGE_PERMISSIONS.spa),
     },
     {
       to: "/counter-orders",
@@ -250,6 +266,8 @@ export function AppShell() {
     }
   };
 
+  if (isTabletAccount) return <Navigate to="/tablet" replace />;
+
   return (
     <div
       className={[
@@ -285,6 +303,11 @@ export function AppShell() {
       >
         <Outlet />
       </main>
+
+      <RoomOrderAlerts
+        enabled={canAccess(["hospitality:spa-session:read"])}
+        printKitchen={(slip) => printerConnection.printKitchen(slip)}
+      />
 
       {isCheckout ? (
         <PosActionRail

@@ -7,6 +7,8 @@ import {
   UpdateSalesOrderDTO,
   UpdateSalesOrderLineDTO,
   UpsertSalesOrderLineDTO,
+  SettleSalesOrderDTO,
+  SettleSalesOrderResultDTO,
   VoidSalesOrderLineDTO,
 } from "../../application/dtos/SalesOrderDTO";
 import { fromApiServiceType } from "../../application/dtos/CashierDTO";
@@ -123,7 +125,8 @@ const resolveLineCatalog = (item: Record<string, unknown>) => {
     productName:
       asHumanName(item.productName) ||
       asHumanName(item.name) ||
-      nestedName(product, ["name", "productName"]),
+      nestedName(product, ["name", "productName"]) ||
+      nestedName(variant?.product, ["name"]),
     variantName:
       asHumanName(item.variantName) ||
       nestedName(variant, ["name", "variantName", "variantSku"]),
@@ -341,6 +344,25 @@ export class ApiSalesOrderRepository implements ISalesOrderRepository {
       payload
     );
     return toSalesOrder(asRecord(unwrap(response)) || {});
+  }
+
+  async settleSalesOrder(
+    id: string,
+    payload: SettleSalesOrderDTO
+  ): Promise<SettleSalesOrderResultDTO> {
+    const response = await this.httpClient.post<ApiEnvelope<Record<string, unknown>>>(
+      API_ENDPOINTS.SALES_ORDERS.SETTLE(id),
+      payload
+    );
+    const item = asRecord(unwrap(response)) || {};
+    return {
+      orderId: String(item.orderId || id),
+      orderNumber: String(item.orderNumber || ""),
+      grandTotal: String(item.grandTotal || "0.0000"),
+      totalPaid: String(item.totalPaid || "0.0000"),
+      change: String(item.change || "0.0000"),
+      status: String(item.status || "COMPLETED"),
+    };
   }
 
   async deleteSalesOrder(id: string): Promise<SalesOrder> {

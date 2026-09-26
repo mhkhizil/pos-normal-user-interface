@@ -16,6 +16,10 @@ vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
+vi.mock("../RoomOrderAlerts", () => ({
+  RoomOrderAlerts: () => null,
+}));
+
 vi.mock("@/components/LanguageSwitcher", () => ({
   LanguageSwitcher: () => <button type="button">Language</button>,
 }));

@@ -44,6 +44,32 @@ export interface UpdateSalesOrderDTO {
   status?: OrderStatus;
 }
 
+export interface SettlePaymentDTO {
+  paymentMethodId: string;
+  amount?: string;
+  guestCardId?: string;
+  tipAmount?: string;
+  transactionReference?: string;
+}
+
+export interface SettleSalesOrderDTO {
+  payments: SettlePaymentDTO[];
+  customerId?: string;
+  posSessionId?: string;
+  tipAmount?: string;
+  serviceCharge?: string;
+  idempotencyKey?: string;
+}
+
+export interface SettleSalesOrderResultDTO {
+  orderId: string;
+  orderNumber: string;
+  grandTotal: string;
+  totalPaid: string;
+  change: string;
+  status: string;
+}
+
 export interface VoidSalesOrderLineDTO {
   voidReasonId: string;
   notes?: string;

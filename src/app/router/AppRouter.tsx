@@ -41,6 +41,21 @@ const KtvRoomPage = lazy(() =>
     default: module.KtvRoomPage,
   }))
 );
+const SpaBoardPage = lazy(() =>
+  import("../../pages/SpaBoardPage").then((module) => ({
+    default: module.SpaBoardPage,
+  }))
+);
+const RoomTabletPage = lazy(() =>
+  import("../../pages/RoomTabletPage").then((module) => ({
+    default: module.RoomTabletPage,
+  }))
+);
+const KdsPage = lazy(() =>
+  import("../../pages/KdsPage").then((module) => ({
+    default: module.KdsPage,
+  }))
+);
 const WaitlistPage = lazy(() =>
   import("../../pages/WaitlistPage").then((module) => ({
     default: module.WaitlistPage,
@@ -136,9 +151,10 @@ function UnauthorizedPage() {
 
 function PermissionRedirect() {
   const { isLoading } = useAuth();
-  const { canAccess } = usePermissions();
+  const { canAccess, isTabletAccount } = usePermissions();
 
   if (isLoading) return <RouteFallback />;
+  if (isTabletAccount) return <Navigate to="/tablet" replace />;
 
   const firstAccessibleRoute = PERMISSION_ROUTE_ORDER.find((entry) =>
     canAccess(entry.permissions)
@@ -191,6 +207,22 @@ export function AppRouter() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route element={<RequireAuth />}>
+            <Route
+              path="/tablet"
+              element={
+                <RequirePermission requiredPermissions={PAGE_PERMISSIONS.tablet}>
+                  <RoomTabletPage />
+                </RequirePermission>
+              }
+            />
+            <Route
+              path="/kds"
+              element={
+                <RequirePermission requiredPermissions={PAGE_PERMISSIONS.kds}>
+                  <KdsPage />
+                </RequirePermission>
+              }
+            />
             <Route element={<AppShell />}>
               <Route path="/" element={<PermissionRedirect />} />
               <Route
@@ -226,6 +258,14 @@ export function AppRouter() {
                 element={
                   <RequirePermission requiredPermissions={PAGE_PERMISSIONS.ktv}>
                     <KtvRoomPage />
+                  </RequirePermission>
+                }
+              />
+              <Route
+                path="/spa"
+                element={
+                  <RequirePermission requiredPermissions={PAGE_PERMISSIONS.spa}>
+                    <SpaBoardPage />
                   </RequirePermission>
                 }
               />

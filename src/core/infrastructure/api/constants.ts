@@ -143,6 +143,7 @@ export const API_ENDPOINTS = {
     CREATE: "/api/v1/sales-orders",
     UPDATE: (id: string) => `/api/v1/sales-orders/${id}`,
     DELETE: (id: string) => `/api/v1/sales-orders/${id}`,
+    SETTLE: (id: string) => `/api/v1/sales-orders/${id}/settle`,
     LINES: (salesOrderId: string) => ({
       LIST: `/api/v1/sales-orders/${salesOrderId}/lines`,
       CREATE: `/api/v1/sales-orders/${salesOrderId}/lines`,
@@ -232,6 +233,42 @@ export const API_ENDPOINTS = {
     RESUME: (id: string) => `/api/v1/ktv-sessions/${id}/resume`,
     CLOSE: (id: string) => `/api/v1/ktv-sessions/${id}/close`,
   },
+  SPA_ROOMS: {
+    CREATE: "/api/v1/spa-rooms",
+    BOARD: "/api/v1/spa-rooms/board",
+    UPDATE: (id: string) => `/api/v1/spa-rooms/${id}`,
+    DELETE: (id: string) => `/api/v1/spa-rooms/${id}`,
+    READY: (id: string) => `/api/v1/spa-rooms/${id}/ready`,
+  },
+
+  SPA_SESSIONS: {
+    CREATE: "/api/v1/spa-sessions",
+    QUOTE: (id: string) => `/api/v1/spa-sessions/${id}/quote`,
+    PAUSE: (id: string) => `/api/v1/spa-sessions/${id}/pause`,
+    RESUME: (id: string) => `/api/v1/spa-sessions/${id}/resume`,
+    CLOSE: (id: string) => `/api/v1/spa-sessions/${id}/close`,
+    EXTEND: (id: string) => `/api/v1/spa-sessions/${id}/extend`,
+    CHARGES: (id: string) => `/api/v1/spa-sessions/${id}/charges`,
+    REFUND_LINE: (id: string, lineId: string) =>
+      `/api/v1/spa-sessions/${id}/lines/${lineId}/refund`,
+  },
+  TABLET: {
+    VISIT: "/api/v1/tablet/visit",
+    HISTORY: "/api/v1/tablet/history",
+    MENU: "/api/v1/tablet/menu",
+    ORDERS: "/api/v1/tablet/orders",
+    EXTEND: "/api/v1/tablet/extend",
+    ROOMS: "/api/v1/tablet/rooms",
+    START: "/api/v1/tablet/start",
+  },
+
+  ROOM_ORDERS: {
+    LIST: "/api/v1/room-orders",
+    ACKNOWLEDGE: (id: string) => `/api/v1/room-orders/${id}/acknowledge`,
+    DELIVER: (id: string) => `/api/v1/room-orders/${id}/deliver`,
+    CLAIM_PRINT: (id: string) => `/api/v1/room-orders/${id}/claim-print`,
+  },
+
   ROOM_TABLET: {
     MENU: "/api/v1/room-tablet/menu",
     SESSION: "/api/v1/room-tablet/session",
@@ -241,6 +278,8 @@ export const API_ENDPOINTS = {
     FIRE: "/api/v1/kds/fire",
     TICKETS: "/api/v1/kds/tickets",
     TICKET: (id: string) => `/api/v1/kds/tickets/${id}`,
+    START: (id: string) => `/api/v1/kds/tickets/${id}/start`,
+    READY: (id: string) => `/api/v1/kds/tickets/${id}/ready`,
     STATIONS: "/api/v1/kds/stations",
     STATION: (id: string) => `/api/v1/kds/stations/${id}`,
   },

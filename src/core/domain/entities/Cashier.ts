@@ -25,6 +25,7 @@ export class Product {
   isTaxable?: boolean;
   taxRate?: number;
   isPriceInclusive?: boolean;
+  trackingType?: string;
 
   constructor(data: Partial<Product>) {
     Object.assign(this, data);

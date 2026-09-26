@@ -748,6 +748,7 @@ export class ApiCashierRepository implements ICashierRepository {
         name: String(item.name || ""),
         basePrice: String(item.basePrice || "0"),
         baseSku: item.baseSku ? String(item.baseSku) : undefined,
+        trackingType: item.trackingType ? String(item.trackingType).toUpperCase() : undefined,
         imageUrl: resolveMediaUrl(item.imageUrl),
         totalOnHand: item.totalOnHand ? String(item.totalOnHand) : undefined,
         isTaxable: toBoolean(item.isTaxable),
@@ -1384,6 +1385,20 @@ export class ApiCashierRepository implements ICashierRepository {
   async getKdsTicketById(id: string): Promise<KdsTicket> {
     const response = await this.httpClient.get<ApiEnvelope<Record<string, unknown>>>(
       API_ENDPOINTS.KDS.TICKET(id)
+    );
+    return toKdsTicket(unwrap(response));
+  }
+
+  async startKdsTicket(id: string): Promise<KdsTicket> {
+    const response = await this.httpClient.post<ApiEnvelope<Record<string, unknown>>>(
+      API_ENDPOINTS.KDS.START(id)
+    );
+    return toKdsTicket(unwrap(response));
+  }
+
+  async readyKdsTicket(id: string): Promise<KdsTicket> {
+    const response = await this.httpClient.post<ApiEnvelope<Record<string, unknown>>>(
+      API_ENDPOINTS.KDS.READY(id)
     );
     return toKdsTicket(unwrap(response));
   }
