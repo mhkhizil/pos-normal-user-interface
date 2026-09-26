@@ -2035,7 +2035,7 @@ export function CashierPage() {
         "pos-split grid h-full min-h-0 min-w-0 overflow-hidden bg-[#070707] text-white",
         activeView === "multi-order" || activeView === "pay"
           ? "grid-cols-[13rem_minmax(0,1fr)] min-[1100px]:grid-cols-[18rem_minmax(0,1fr)]"
-          : "grid-cols-[13rem_minmax(0,1fr)_5.5rem] min-[1100px]:grid-cols-[18rem_minmax(0,1fr)_8rem]",
+          : "grid-cols-[11rem_minmax(0,1fr)] min-[1100px]:grid-cols-[18rem_minmax(0,1fr)_8rem]",
       ].join(" ")}
     >
       <OrderPanel
@@ -2223,7 +2223,7 @@ export function CashierPage() {
       </main>
 
       {activeView !== "multi-order" && activeView !== "pay" ? (
-        <aside className="flex min-h-0 flex-col border-l border-slate-800 bg-[#222] p-1.5 min-[1100px]:p-2">
+        <aside className="hidden min-h-0 flex-col border-l border-slate-800 bg-[#222] p-1.5 min-[1100px]:flex min-[1100px]:p-2">
         {activeView === "menu" ? (
           <>
             <button

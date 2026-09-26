@@ -253,9 +253,9 @@ export function AppShell() {
     openCashierView(view);
   };
 
-  const isCheckout =
-    (location.pathname.startsWith("/cashier") && cashierView === "pay") ||
-    (Boolean(ktvRoomMatch) && ktvView === "pay");
+  const showCheckoutActionRail =
+    location.pathname.startsWith("/cashier") || Boolean(ktvRoomMatch);
+  const actionRailView = ktvRoomMatch ? ktvView : cashierView;
 
   const handleBranchChange = async (branchId: string) => {
     try {
@@ -269,10 +269,11 @@ export function AppShell() {
   if (isTabletAccount) return <Navigate to="/tablet" replace />;
 
   return (
+    <>
     <div
       className={[
         "pos-app-shell pos-touch-scroll grid h-[100dvh] min-h-[480px] min-w-0 overflow-hidden bg-black",
-        isCheckout
+        showCheckoutActionRail
           ? "grid-cols-[3.5rem_minmax(0,1fr)_6.5rem]"
           : "grid-cols-[3.5rem_minmax(0,1fr)]",
       ].join(" ")}
@@ -304,12 +305,7 @@ export function AppShell() {
         <Outlet />
       </main>
 
-      <RoomOrderAlerts
-        enabled={canAccess(["hospitality:spa-session:read"])}
-        printKitchen={(slip) => printerConnection.printKitchen(slip)}
-      />
-
-      {isCheckout ? (
+      {showCheckoutActionRail ? (
         <PosActionRail
           drawerLabel={t("shell.drawer")}
           menuLabel={t("shell.menu")}
@@ -323,10 +319,22 @@ export function AppShell() {
           onOrders={() =>
             ktvRoomMatch ? openActivePosView("orders") : navigate("/counter-orders")
           }
-          onPay={() => openActivePosView("menu")}
-          activeView="pay"
+          onPay={() =>
+            openActivePosView(actionRailView === "pay" ? "menu" : "pay")
+          }
+          activeView={
+            actionRailView === "menu" || actionRailView === "pay"
+              ? actionRailView
+              : null
+          }
         />
       ) : null}
     </div>
+
+    <RoomOrderAlerts
+      enabled={canAccess(["hospitality:spa-session:read"])}
+      printKitchen={(slip) => printerConnection.printKitchen(slip)}
+    />
+    </>
   );
 }
