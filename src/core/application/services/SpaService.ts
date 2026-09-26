@@ -93,7 +93,9 @@ export class SpaService implements ISpaService {
 
   giveFree(id: string, payload: GiveFreeItemsDTO): Promise<SpaChargeResultDTO> {
     requireId(id, "Session ID");
-    requireId(payload.compReasonId, "FOC reason");
+    if (!payload.compReasonId && !payload.reason?.trim()) {
+      throw new Error("FOC reason is required");
+    }
     if (!payload.items.length) throw new Error("Nothing to give");
     return this.repository.giveFree(id, payload);
   }

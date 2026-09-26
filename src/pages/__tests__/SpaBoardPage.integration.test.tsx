@@ -376,14 +376,14 @@ describe("SpaBoardPage", () => {
     const confirm = screen.getByRole("button", { name: "spa.focConfirm" });
     expect(confirm).toBeDisabled();
     fireEvent.change(screen.getByLabelText("spa.focReason"), {
-      target: { value: "reason-foc" },
+      target: { value: "Birthday" },
     });
     fireEvent.click(confirm);
 
     await waitFor(() =>
       expect(mocks.giveFree).toHaveBeenCalledWith("session-1", {
         items: [{ variantId: "variant-scrub", quantity: 1 }],
-        compReasonId: "reason-foc",
+        reason: "Birthday",
       })
     );
     expect(await screen.findByText("spa.focGiven")).toBeInTheDocument();
@@ -400,13 +400,13 @@ describe("SpaBoardPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "spa.addToBillWithFree" }));
 
     fireEvent.change(screen.getByLabelText("spa.focReason"), {
-      target: { value: "reason-foc" },
+      target: { value: "Birthday" },
     });
     fireEvent.click(screen.getByRole("button", { name: "spa.focConfirm" }));
     await waitFor(() =>
       expect(mocks.giveFree).toHaveBeenCalledWith("session-1", {
         items: [{ variantId: "variant-scrub", quantity: 1 }],
-        compReasonId: "reason-foc",
+        reason: "Birthday",
       })
     );
 

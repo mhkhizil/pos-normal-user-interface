@@ -155,7 +155,7 @@ export function SpaBoardPage() {
   const [editingRoom, setEditingRoom] = useState<SpaRoom | null>(null);
   const [roomForm, setRoomForm] = useState(emptyRoomForm);
   const [showFoc, setShowFoc] = useState(false);
-  const [focReasonId, setFocReasonId] = useState("");
+  const [focReason, setFocReason] = useState("");
   const [isGivingFoc, setIsGivingFoc] = useState(false);
 
   const room = rooms.find((item) => item.id === selectedRoomId) || null;
@@ -505,13 +505,13 @@ export function SpaBoardPage() {
 
   const confirmFoc = async () => {
     const free = focPending(pending);
-    if (!session || !free.length || !focReasonId) return;
+    if (!session || !free.length || !focReason.trim()) return;
     setActionError(null);
     setIsGivingFoc(true);
     try {
       await giveFree(session.id, {
         items: free.map((item) => ({ variantId: item.variantId, quantity: item.quantity })),
-        compReasonId: focReasonId,
+        reason: focReason.trim(),
       });
       const count = free.reduce((sum, item) => sum + item.quantity, 0);
       const rest = paidPending(pending);
@@ -1201,23 +1201,38 @@ export function SpaBoardPage() {
             </div>
             <label className="block text-sm">
               {t("spa.focReason")}
-              <select
-                value={focReasonId}
-                onChange={(event) => setFocReasonId(event.target.value)}
+              <input
+                value={focReason}
+                onChange={(event) => setFocReason(event.target.value)}
+                list="foc-reasons"
+                maxLength={100}
+                placeholder={t("spa.focReasonPlaceholder")}
                 className="mt-1 w-full rounded border border-slate-700 bg-slate-900 px-3 py-2"
-              >
-                <option value="" disabled>
-                  {t("spa.focChooseReason")}
-                </option>
+                autoFocus
+              />
+              <datalist id="foc-reasons">
                 {discountReasons.map((reason) => (
-                  <option key={reason.id} value={reason.id}>
-                    {reason.name}
-                  </option>
+                  <option key={reason.id} value={reason.name} />
                 ))}
-              </select>
+              </datalist>
             </label>
-            {discountReasons.length === 0 ? (
-              <p className="text-xs text-amber-300">{t("spa.focNoReasons")}</p>
+            {discountReasons.length ? (
+              <div className="flex flex-wrap gap-1.5">
+                {discountReasons.slice(0, 6).map((reason) => (
+                  <button
+                    key={reason.id}
+                    type="button"
+                    className={`rounded-full px-2.5 py-1 text-xs ${
+                      focReason === reason.name
+                        ? "bg-fuchsia-700 text-white"
+                        : "bg-slate-800 text-slate-300"
+                    }`}
+                    onClick={() => setFocReason(reason.name)}
+                  >
+                    {reason.name}
+                  </button>
+                ))}
+              </div>
             ) : null}
             <div className="grid grid-cols-2 gap-2">
               <Button variant="secondary" onClick={() => setShowFoc(false)}>
@@ -1225,7 +1240,7 @@ export function SpaBoardPage() {
               </Button>
               <Button
                 isLoading={isGivingFoc}
-                disabled={!focReasonId}
+                disabled={!focReason.trim()}
                 onClick={() => void confirmFoc()}
               >
                 {t("spa.focConfirm")}

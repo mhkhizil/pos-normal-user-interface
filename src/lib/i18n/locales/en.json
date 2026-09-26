@@ -1301,15 +1301,14 @@
     "focTitle": "Give free · {{room}}",
     "focDescription": "On the house: goes to the kitchen like any order, nothing is charged to the card.",
     "focReason": "Reason",
-    "focChooseReason": "Choose a reason…",
-    "focNoReasons": "No discount reasons are set up yet. Add one before giving items free.",
     "focConfirm": "Give free",
     "focGiven": "{{count}} items given free",
     "focToggle": "Give one {{name}} free",
     "free": "Free",
     "giveFreeCount": "Give free · {{count}}",
     "addToBillWithFree": "Add to bill · {{count}} · {{amount}} + {{free}} free",
-    "owes": "Owes {{amount}}"
+    "owes": "Owes {{amount}}",
+    "focReasonPlaceholder": "Birthday, regular guest, apology…"
   },
   "statusBadge": {
     "verified": "Verified",

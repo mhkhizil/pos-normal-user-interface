@@ -51,7 +51,8 @@ export interface ChargeSpaItemsDTO extends SpaCardChargeDTO {
 
 export interface GiveFreeItemsDTO {
   items: { variantId: string; quantity: number }[];
-  compReasonId: string;
+  compReasonId?: string;
+  reason?: string;
 }
 
 export interface SpaChargeResultDTO {
