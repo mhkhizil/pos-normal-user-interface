@@ -1372,7 +1372,8 @@
       "balance": "Not enough balance. Please top up at reception.",
       "wrongCard": "This card isn't registered to this room.",
       "generic": "Something went wrong. Please try again or ask staff.",
-      "roomTaken": "This room is already taken or being prepared."
+      "roomTaken": "This room is already taken or being prepared.",
+      "rooms": "Could not load the rooms. Check the connection and that this account has the Room Tablet role."
     },
     "roomFree": "Available",
     "welcome": "Welcome — this room is free",
@@ -1384,7 +1385,10 @@
     "addFood": "Anything to eat or drink? (optional)",
     "review": "Your booking",
     "payAndStart": "Pay & start · {{amount}}",
-    "started": "Enjoy! {{count}} sessions started · Charged {{amount}} · Balance {{balance}}"
+    "started": "Enjoy! {{count}} sessions started · Charged {{amount}} · Balance {{balance}}",
+    "tryAgain": "Try again",
+    "loadingRooms": "Loading rooms…",
+    "noRoomsSetUp": "No spa rooms are set up yet. Add rooms on the SPA board first."
   },
   "kds": {
     "title": "Kitchen display",

@@ -111,9 +111,22 @@ export function RoomTabletPage() {
         ? sessionPrice * sessions + cartTotal
         : cartTotal * (1 - discount);
 
+  const [roomsError, setRoomsError] = useState<string | null>(null);
+  const [roomsLoaded, setRoomsLoaded] = useState(false);
+  const fetchRooms = useCallback(async () => {
+    try {
+      await loadRooms();
+      setRoomsError(null);
+    } catch (caught) {
+      setRoomsError(caught instanceof Error ? caught.message : "error");
+    } finally {
+      setRoomsLoaded(true);
+    }
+  }, [loadRooms]);
+
   useEffect(() => {
-    if (!setup && !rooms.length) void loadRooms().catch(() => undefined);
-  }, [loadRooms, rooms.length, setup]);
+    if (!setup) void fetchRooms();
+  }, [fetchRooms, setup]);
 
   useEffect(() => {
     if (!setup) return;
@@ -327,6 +340,17 @@ export function RoomTabletPage() {
         <div className="mx-auto max-w-3xl space-y-4">
           <h1 className="text-2xl font-bold">{t("tablet.setupTitle")}</h1>
           <p className="text-slate-400">{t("tablet.setupDescription")}</p>
+          {roomsError ? (
+            <div className="space-y-3 rounded border border-red-500/60 bg-red-950/40 p-4">
+              <p className="text-red-100">{t("tablet.errors.rooms")}</p>
+              <p className="text-xs text-red-200/80">{roomsError}</p>
+              <Button onClick={() => void fetchRooms()}>{t("tablet.tryAgain")}</Button>
+            </div>
+          ) : !roomsLoaded ? (
+            <p className="text-slate-400">{t("tablet.loadingRooms")}</p>
+          ) : rooms.length === 0 ? (
+            <p className="text-slate-300">{t("tablet.noRoomsSetUp")}</p>
+          ) : null}
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
             {rooms.map((room) => (
               <button
