@@ -1,5 +1,6 @@
 import {
   ChargeSpaItemsDTO,
+  GiveFreeItemsDTO,
   CloseSpaSessionDTO,
   ExtendSpaSessionDTO,
   SpaChargeResultDTO,
@@ -22,5 +23,6 @@ export interface ISpaRepository {
   closeSession(id: string, payload: CloseSpaSessionDTO): Promise<SpaSessionQuote>;
   extendSession(id: string, payload: ExtendSpaSessionDTO): Promise<SpaChargeResultDTO>;
   chargeItems(id: string, payload: ChargeSpaItemsDTO): Promise<SpaChargeResultDTO>;
+  giveFree(id: string, payload: GiveFreeItemsDTO): Promise<SpaChargeResultDTO>;
   refundLine(id: string, lineId: string, reason?: string): Promise<SpaChargeResultDTO>;
 }

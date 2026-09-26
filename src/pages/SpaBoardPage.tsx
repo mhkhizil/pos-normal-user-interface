@@ -96,6 +96,7 @@ export function SpaBoardPage() {
     closeSession,
     extendSession,
     chargeItems,
+    giveFree,
     refundLine,
     clearQuote,
   } = useSpaManagement();
@@ -103,6 +104,8 @@ export function SpaBoardPage() {
     products,
     variantsByProductId,
     paymentMethods,
+    discountReasons,
+    fetchDiscountReasons,
     fetchProducts,
     fetchProductVariants,
     fetchPaymentMethods,
@@ -149,6 +152,9 @@ export function SpaBoardPage() {
   const [editingRoom, setEditingRoom] = useState<SpaRoom | null>(null);
   const [roomForm, setRoomForm] = useState(emptyRoomForm);
   const [startItems, setStartItems] = useState<PendingItem[]>([]);
+  const [showFoc, setShowFoc] = useState(false);
+  const [focReasonId, setFocReasonId] = useState("");
+  const [isGivingFoc, setIsGivingFoc] = useState(false);
 
   const room = rooms.find((item) => item.id === selectedRoomId) || null;
   const openSessions = useMemo(
@@ -509,6 +515,33 @@ export function SpaBoardPage() {
     }
   };
 
+  const openFoc = () => {
+    setActionError(null);
+    setShowFoc(true);
+    void fetchDiscountReasons().catch(() => undefined);
+  };
+
+  const confirmFoc = async () => {
+    if (!session || !pending.length || !focReasonId) return;
+    setActionError(null);
+    setIsGivingFoc(true);
+    try {
+      await giveFree(session.id, {
+        items: pending.map((item) => ({ variantId: item.variantId, quantity: item.quantity })),
+        compReasonId: focReasonId,
+      });
+      const count = pending.reduce((sum, item) => sum + item.quantity, 0);
+      setPending([]);
+      setShowFoc(false);
+      setNotice(t("spa.focGiven", { count }));
+      await refreshBill(session);
+    } catch (caught) {
+      setActionError(caught instanceof Error ? caught.message : t("spa.errors.foc"));
+    } finally {
+      setIsGivingFoc(false);
+    }
+  };
+
   const runCardAction = (action: CardAction, payer: GuestWallet, payerCard: GuestCard) => {
     if (action === "add") void commitPending(payer, payerCard);
     else if (action === "open") void openTreatment(payer, payerCard);
@@ -660,6 +693,16 @@ export function SpaBoardPage() {
   const removeLine = async (line: SalesOrderLine) => {
     if (!session?.salesOrderId || billClosed) return;
     setActionError(null);
+    if (quote?.prepaid && line.compReasonId) {
+      try {
+        await refundLine(session.id, line.id);
+        await refreshBill(session);
+        setNotice(t("spa.lineRemoved"));
+      } catch (caught) {
+        setActionError(caught instanceof Error ? caught.message : t("spa.errors.editLine"));
+      }
+      return;
+    }
     if (quote?.prepaid) {
       try {
         const result = await refundLine(session.id, line.id);
@@ -1077,6 +1120,7 @@ export function SpaBoardPage() {
             }
             onClearPending={() => setPending([])}
             onCommitPending={() => requestCard("add")}
+            onGiveFree={openFoc}
             onChangeCard={forgetCard}
           />
 
@@ -1236,6 +1280,67 @@ export function SpaBoardPage() {
             </p>
           )}
         </CardTapDialog>
+      ) : null}
+
+      {showFoc && session ? (
+        <div className="fixed inset-0 z-40 grid place-items-center bg-black/75 p-4">
+          <div className="max-h-[calc(100vh-2rem)] w-full max-w-md space-y-4 overflow-y-auto rounded-lg border border-fuchsia-500 bg-slate-950 p-5">
+            <div>
+              <h2 className="text-lg font-bold">
+                {t("spa.focTitle", { room: room?.roomNumber || "" })}
+              </h2>
+              <p className="mt-1 text-sm text-slate-400">{t("spa.focDescription")}</p>
+            </div>
+            <div className="max-h-56 space-y-1 overflow-y-auto rounded border border-slate-800 bg-slate-900/60 p-3 text-sm">
+              {pending.map((item) => (
+                <p key={item.variantId} className="flex justify-between gap-2">
+                  <span className="truncate">
+                    {item.name} × {item.quantity}
+                  </span>
+                  <span className="shrink-0 text-slate-500 line-through">
+                    {money(item.unitPrice * item.quantity)}
+                  </span>
+                </p>
+              ))}
+              <p className="mt-1 flex justify-between border-t border-slate-800 pt-1 font-semibold">
+                <span>{t("spa.toPay")}</span>
+                <span>0</span>
+              </p>
+            </div>
+            <label className="block text-sm">
+              {t("spa.focReason")}
+              <select
+                value={focReasonId}
+                onChange={(event) => setFocReasonId(event.target.value)}
+                className="mt-1 w-full rounded border border-slate-700 bg-slate-900 px-3 py-2"
+              >
+                <option value="" disabled>
+                  {t("spa.focChooseReason")}
+                </option>
+                {discountReasons.map((reason) => (
+                  <option key={reason.id} value={reason.id}>
+                    {reason.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {discountReasons.length === 0 ? (
+              <p className="text-xs text-amber-300">{t("spa.focNoReasons")}</p>
+            ) : null}
+            <div className="grid grid-cols-2 gap-2">
+              <Button variant="secondary" onClick={() => setShowFoc(false)}>
+                {t("common.cancel")}
+              </Button>
+              <Button
+                isLoading={isGivingFoc}
+                disabled={!focReasonId}
+                onClick={() => void confirmFoc()}
+              >
+                {t("spa.focConfirm")}
+              </Button>
+            </div>
+          </div>
+        </div>
       ) : null}
 
       {showExtend && session ? (

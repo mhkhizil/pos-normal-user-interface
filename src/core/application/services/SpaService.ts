@@ -1,5 +1,6 @@
 import {
   ChargeSpaItemsDTO,
+  GiveFreeItemsDTO,
   CloseSpaSessionDTO,
   ExtendSpaSessionDTO,
   SpaChargeResultDTO,
@@ -88,6 +89,13 @@ export class SpaService implements ISpaService {
     requireId(id, "Session ID");
     if (!payload.items.length) throw new Error("Nothing to charge");
     return this.repository.chargeItems(id, payload);
+  }
+
+  giveFree(id: string, payload: GiveFreeItemsDTO): Promise<SpaChargeResultDTO> {
+    requireId(id, "Session ID");
+    requireId(payload.compReasonId, "FOC reason");
+    if (!payload.items.length) throw new Error("Nothing to give");
+    return this.repository.giveFree(id, payload);
   }
 
   refundLine(id: string, lineId: string, reason?: string): Promise<SpaChargeResultDTO> {

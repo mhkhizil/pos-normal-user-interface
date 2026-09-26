@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   addOrderLine: vi.fn(),
   updateRoom: vi.fn(),
   chargeItems: vi.fn(),
+  giveFree: vi.fn(),
   extendSession: vi.fn(),
   refundLine: vi.fn(),
   settleOrder: vi.fn(),
@@ -126,6 +127,7 @@ vi.mock("@/core/presentation/hooks/useSpaManagement", () => ({
     resumeSession: mocks.noop,
     closeSession: mocks.closeSession,
     chargeItems: mocks.chargeItems,
+    giveFree: mocks.giveFree,
     extendSession: mocks.extendSession,
     refundLine: mocks.refundLine,
     clearQuote: mocks.noop,
@@ -143,6 +145,8 @@ vi.mock("@/core/presentation/hooks/useCashier", () => ({
       { id: "card-method", tenantId: "tenant-1", name: "Guest Card", kind: "GUEST_CARD" },
       { id: "cash-method", tenantId: "tenant-1", name: "Cash", kind: "CASH" },
     ],
+    discountReasons: [{ id: "reason-foc", name: "Birthday", isActive: true }],
+    fetchDiscountReasons: () => Promise.resolve(),
     fetchProducts: mocks.noop,
     fetchProductVariants: mocks.noop,
     fetchPaymentMethods: mocks.noop,
@@ -360,6 +364,54 @@ describe("SpaBoardPage", () => {
       expect(mocks.deleteOrderLine).toHaveBeenCalledWith("order-1", "line-1")
     );
     expect(mocks.lookupCard).not.toHaveBeenCalled();
+  });
+
+  it("gives items free with a reason and no card tap", async () => {
+    mocks.giveFree.mockResolvedValue({ charged: "0", balanceAfter: "120000", quote });
+    await openRunningRoom();
+    fireEvent.click(screen.getByRole("button", { name: /Foot Scrub/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "spa.foc" }));
+
+    const confirm = screen.getByRole("button", { name: "spa.focConfirm" });
+    expect(confirm).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("spa.focReason"), {
+      target: { value: "reason-foc" },
+    });
+    fireEvent.click(confirm);
+
+    await waitFor(() =>
+      expect(mocks.giveFree).toHaveBeenCalledWith("session-1", {
+        items: [{ variantId: "variant-scrub", quantity: 1 }],
+        compReasonId: "reason-foc",
+      })
+    );
+    expect(await screen.findByText("spa.focGiven")).toBeInTheDocument();
+    expect(mocks.lookupCard).not.toHaveBeenCalled();
+    expect(mocks.addOrderLine).not.toHaveBeenCalled();
+  });
+
+  it("marks a free line and lets it only be removed", async () => {
+    lines = [
+      {
+        id: "line-foc",
+        salesOrderId: "order-1",
+        variantId: "variant-scrub",
+        productName: "Foot Scrub",
+        quantity: "1.0000",
+        unitPrice: "6000.0000",
+        lineDiscount: "6000.0000",
+        compReasonId: "reason-foc",
+        status: "PENDING",
+      },
+    ];
+    await openRunningRoom();
+
+    expect(screen.getByText("spa.foc", { selector: "span" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "spa.decrease" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "spa.removeLine" }));
+    await waitFor(() =>
+      expect(mocks.deleteOrderLine).toHaveBeenCalledWith("order-1", "line-foc")
+    );
   });
 
   it("prices a room with a plain number", async () => {
