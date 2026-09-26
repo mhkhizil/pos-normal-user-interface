@@ -51,7 +51,16 @@ export function SpaRoomTile({
           </span>
         </div>
         <div className="mt-5 grid grid-cols-2 gap-2 text-xs text-slate-300">
-          <span>{t("spa.perSession", { count: room.minimumMinutes })}</span>
+          <span>
+            {room.sessionPrice !== undefined ? (
+              <span className="mr-1 text-sm font-semibold text-teal-300">
+                {Number(room.sessionPrice).toLocaleString(undefined, {
+                  maximumFractionDigits: 2,
+                })}
+              </span>
+            ) : null}
+            {t("spa.perSession", { count: room.minimumMinutes })}
+          </span>
           <span className="text-right">
             {session
               ? t("spa.guestCount", { count: session.guestCount })

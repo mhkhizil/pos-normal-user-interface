@@ -414,6 +414,11 @@ describe("SpaBoardPage", () => {
     );
   });
 
+  it("shows each room's price per session on the board", () => {
+    renderPage();
+    expect(screen.getByText("30,000")).toBeInTheDocument();
+  });
+
   it("prices a room with a plain number", async () => {
     mocks.updateRoom.mockResolvedValue(room("wallet-1"));
     renderPage();
