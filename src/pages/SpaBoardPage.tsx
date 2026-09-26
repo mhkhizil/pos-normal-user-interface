@@ -187,7 +187,14 @@ export function SpaBoardPage() {
   );
   const treatmentOptions = useMemo(() => {
     const spaFirst = (name?: string) => (/spa|treat|massage/i.test(name || "") ? 0 : 1);
-    return [...products]
+    const typed = products.some((product) => product.trackingType);
+    const isTreatment = (product: Product) =>
+      !/ktv|karaoke/i.test(product.categoryName || "") &&
+      (typed
+        ? product.trackingType === "SERVICE"
+        : /spa|treat|massage/i.test(product.categoryName || ""));
+    return products
+      .filter(isTreatment)
       .sort(
         (left, right) =>
           spaFirst(left.categoryName) - spaFirst(right.categoryName) ||
@@ -1345,6 +1352,29 @@ export function SpaBoardPage() {
                 />
               </label>
             ))}
+            {selectedTreatment?.minutes &&
+            selectedTreatment.minutes !== Number(roomForm.treatmentMinutes) ? (
+              <p className="col-span-2 flex items-center justify-between gap-2 rounded border border-amber-500/60 bg-amber-950/40 p-2 text-xs text-amber-200">
+                <span>
+                  {t("spa.lengthMismatch", {
+                    minutes: selectedTreatment.minutes,
+                    length: roomForm.treatmentMinutes,
+                  })}
+                </span>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() =>
+                    setRoomForm((current) => ({
+                      ...current,
+                      treatmentMinutes: String(selectedTreatment.minutes),
+                    }))
+                  }
+                >
+                  {t("spa.useLength", { minutes: selectedTreatment.minutes })}
+                </Button>
+              </p>
+            ) : null}
             <p className="col-span-2 text-xs text-slate-400">
               {selectedTreatment
                 ? t("spa.rateSummary", {

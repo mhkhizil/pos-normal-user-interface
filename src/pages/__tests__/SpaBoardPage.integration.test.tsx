@@ -74,7 +74,17 @@ const scrub = {
   id: "product-scrub",
   tenantId: "tenant-1",
   name: "Foot Scrub",
+  categoryName: "Spa Services",
+  trackingType: "SERVICE",
   basePrice: "6000.0000",
+};
+const beer = {
+  id: "product-beer",
+  tenantId: "tenant-1",
+  name: "Myanmar Beer",
+  categoryName: "Beer & Spirits",
+  trackingType: "STANDARD",
+  basePrice: "3500.0000",
 };
 const scrubVariant = { id: "variant-scrub", productId: "product-scrub", priceModifier: "0" };
 
@@ -110,8 +120,11 @@ vi.mock("@/core/presentation/hooks/useSpaManagement", () => ({
 
 vi.mock("@/core/presentation/hooks/useCashier", () => ({
   useCashier: () => ({
-    products: [scrub],
-    variantsByProductId: { "product-scrub": [scrubVariant] },
+    products: [scrub, beer],
+    variantsByProductId: {
+      "product-scrub": [scrubVariant],
+      "product-beer": [{ id: "variant-beer", productId: "product-beer", priceModifier: "0" }],
+    },
     paymentMethods: [
       { id: "card-method", tenantId: "tenant-1", name: "Guest Card", kind: "GUEST_CARD" },
       { id: "cash-method", tenantId: "tenant-1", name: "Cash", kind: "CASH" },
@@ -339,6 +352,7 @@ describe("SpaBoardPage", () => {
 
     const picker = screen.getByRole("combobox");
     expect(screen.getByRole("option", { name: "Foot Scrub — 6,000" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /Myanmar Beer/ })).not.toBeInTheDocument();
     fireEvent.change(picker, { target: { value: "variant-scrub" } });
     fireEvent.click(screen.getByRole("button", { name: "common.save" }));
 

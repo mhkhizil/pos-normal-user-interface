@@ -1296,7 +1296,9 @@
     "endTitle": "End treatment in {{room}}?",
     "endDescription": "Paid so far {{amount}}. Nothing more will be charged, and the room goes for cleaning.",
     "treatmentEnded": "Treatment in {{room}} ended · paid {{amount}}.",
-    "refundLine": "Refund to card"
+    "refundLine": "Refund to card",
+    "lengthMismatch": "This treatment is {{minutes}} min, but the session length is {{length}} min.",
+    "useLength": "Use {{minutes}} min"
   },
   "statusBadge": {
     "verified": "Verified",

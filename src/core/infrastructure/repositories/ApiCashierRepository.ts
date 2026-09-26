@@ -748,6 +748,7 @@ export class ApiCashierRepository implements ICashierRepository {
         name: String(item.name || ""),
         basePrice: String(item.basePrice || "0"),
         baseSku: item.baseSku ? String(item.baseSku) : undefined,
+        trackingType: item.trackingType ? String(item.trackingType).toUpperCase() : undefined,
         imageUrl: resolveMediaUrl(item.imageUrl),
         totalOnHand: item.totalOnHand ? String(item.totalOnHand) : undefined,
         isTaxable: toBoolean(item.isTaxable),
