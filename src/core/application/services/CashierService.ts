@@ -481,6 +481,16 @@ export class CashierService implements ICashierService {
     return this.cashierRepository.getKdsTicketById(id);
   }
 
+  async startKdsTicket(id: string): Promise<KdsTicket> {
+    if (!id?.trim()) throw new Error("Ticket ID is required");
+    return this.cashierRepository.startKdsTicket(id);
+  }
+
+  async readyKdsTicket(id: string): Promise<KdsTicket> {
+    if (!id?.trim()) throw new Error("Ticket ID is required");
+    return this.cashierRepository.readyKdsTicket(id);
+  }
+
   async checkout(payload: CheckoutRequestDTO): Promise<Record<string, unknown>> {
     if (!payload.tenantId?.trim()) {
       throw new Error("Tenant ID is required");

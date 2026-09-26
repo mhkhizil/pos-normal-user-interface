@@ -1389,6 +1389,20 @@ export class ApiCashierRepository implements ICashierRepository {
     return toKdsTicket(unwrap(response));
   }
 
+  async startKdsTicket(id: string): Promise<KdsTicket> {
+    const response = await this.httpClient.post<ApiEnvelope<Record<string, unknown>>>(
+      API_ENDPOINTS.KDS.START(id)
+    );
+    return toKdsTicket(unwrap(response));
+  }
+
+  async readyKdsTicket(id: string): Promise<KdsTicket> {
+    const response = await this.httpClient.post<ApiEnvelope<Record<string, unknown>>>(
+      API_ENDPOINTS.KDS.READY(id)
+    );
+    return toKdsTicket(unwrap(response));
+  }
+
   async getCounterOrderById(id: string): Promise<CounterOrderDetail> {
     const response = await this.httpClient.get<ApiEnvelope<Record<string, unknown>>>(
       API_ENDPOINTS.COUNTER_ORDERS.BY_ID(id)

@@ -139,6 +139,8 @@ export interface ICashierService {
     params?: KdsTicketFilterDTO
   ): Promise<KdsTicketListDTO & { tickets: KdsTicket[] }>;
   getKdsTicketById(id: string): Promise<KdsTicket>;
+  startKdsTicket(id: string): Promise<KdsTicket>;
+  readyKdsTicket(id: string): Promise<KdsTicket>;
   checkout(payload: CheckoutRequestDTO): Promise<Record<string, unknown>>;
   voidCheckout(id: string): Promise<VoidCheckoutResultDTO>;
 }

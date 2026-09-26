@@ -16,6 +16,8 @@ export const PAGE_PERMISSIONS = {
   cashier: [] as string[],
   ktv: [] as string[],
   spa: ["hospitality:spa-room:read"],
+  tablet: ["hospitality:room-tablet:write"],
+  kds: ["hospitality:kds-ticket:read"],
   waitlist: [] as string[],
   tipPools: [] as string[],
   counterOrders: [] as string[],
@@ -75,10 +77,16 @@ export function usePermissions() {
     return requiredPermissions.some((permission) => hasPermission(permission));
   };
 
+  const isTabletAccount =
+    !isFullAccess &&
+    hasPermission("hospitality:room-tablet:write") &&
+    !hasPermission("hospitality:spa-session:read");
+
   return {
     permissions,
     resolvedRoleName,
     isFullAccess,
+    isTabletAccount,
     isLoading: false,
     hasPermission,
     canAccess,

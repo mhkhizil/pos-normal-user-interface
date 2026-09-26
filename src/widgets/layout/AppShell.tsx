@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/core/presentation/hooks/useAuth";
 import { usePosWorkspace } from "@/core/presentation/hooks/usePosWorkspace";
 import { usePrinterConnection } from "@/core/presentation/hooks/usePrinterConnection";
@@ -8,6 +8,7 @@ import {
   usePermissions,
 } from "@/features/permissions/usePermissions";
 import { PosActionRail } from "./PosActionRail";
+import { RoomOrderAlerts } from "./RoomOrderAlerts";
 import { PosIconRail, type PosRailItem } from "./PosIconRail";
 
 const iconClass = "h-5 w-5";
@@ -125,7 +126,7 @@ export function AppShell() {
     String(user?.tenantId || ""),
     activePosRegisterId
   );
-  const { canAccess } = usePermissions();
+  const { canAccess, isTabletAccount } = usePermissions();
   const navigate = useNavigate();
   const location = useLocation();
   const isPosWorkspace = [
@@ -265,6 +266,8 @@ export function AppShell() {
     }
   };
 
+  if (isTabletAccount) return <Navigate to="/tablet" replace />;
+
   return (
     <div
       className={[
@@ -300,6 +303,11 @@ export function AppShell() {
       >
         <Outlet />
       </main>
+
+      <RoomOrderAlerts
+        enabled={canAccess(["hospitality:spa-session:read"])}
+        printKitchen={(slip) => printerConnection.printKitchen(slip)}
+      />
 
       {isCheckout ? (
         <PosActionRail
