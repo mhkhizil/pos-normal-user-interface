@@ -1187,8 +1187,8 @@
       "closed": "Closed"
     },
     "steps": {
-      "card": "Guest card",
       "rooms": "Select room",
+      "card": "Guest card",
       "sessions": "Select session",
       "menu": "Add services",
       "pay": "Close and pay"
@@ -1250,7 +1250,6 @@
       "pay": "Unable to close and pay this treatment."
     },
     "item": "Item",
-    "viewBoard": "View room board",
     "tapCardForRoom": "Tap the guest card to continue with room {{room}}.",
     "continueToRoom": "Continue to {{room}}"
   },

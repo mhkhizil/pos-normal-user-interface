@@ -101,7 +101,7 @@ export function SpaBoardPage() {
   const { activeLocationId, requireCashierContext, isWorkspaceReady } =
     usePosWorkspace();
 
-  const [step, setStep] = useState<SpaStep>("card");
+  const [step, setStep] = useState<SpaStep>("rooms");
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [filter, setFilter] = useState<"ALL" | "AVAILABLE" | "ACTIVE">("ALL");
   const [selectedRoomId, setSelectedRoomId] = useState("");
@@ -428,7 +428,7 @@ export function SpaBoardPage() {
     setWallet(null);
     setCardUid("");
     setNotice(null);
-    setStep("card");
+    setStep("rooms");
   };
 
   const handleSaveRoom = async (event: FormEvent) => {
@@ -475,8 +475,7 @@ export function SpaBoardPage() {
     setActionError(null);
     if (step === "pay") setStep(billClosed ? "pay" : "menu");
     else if (step === "menu") setStep("sessions");
-    else if (step === "sessions") setStep("rooms");
-    else setStep("card");
+    else setStep("rooms");
   };
 
   return (
@@ -487,7 +486,7 @@ export function SpaBoardPage() {
           <p className="text-sm text-slate-400">{t(`spa.steps.${step}`)}</p>
         </div>
         <div className="flex gap-2">
-          {step !== "card" && !(step === "pay" && billClosed) && !paid ? (
+          {step !== "rooms" && !(step === "pay" && billClosed) && !paid ? (
             <Button variant="secondary" onClick={goBack}>
               {t("cardTopup.back")}
             </Button>
@@ -543,11 +542,6 @@ export function SpaBoardPage() {
           <Button fullWidth type="submit" disabled={!cardUid.trim()}>
             {t("spa.checkCard")}
           </Button>
-          {!card ? (
-            <Button fullWidth variant="secondary" onClick={() => setStep("rooms")}>
-              {t("spa.viewBoard")}
-            </Button>
-          ) : null}
           {wallet && card ? (
             <div className="rounded border border-slate-700 p-4">
               <p className="font-semibold">{wallet.guestName}</p>
