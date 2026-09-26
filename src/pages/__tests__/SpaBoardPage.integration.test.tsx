@@ -42,6 +42,8 @@ const room = (guestWalletId: string) => ({
   name: "Couple suite",
   capacity: 2,
   rateVariantId: "variant-rate",
+  rateProductId: "product-room",
+  sessionPrice: 30000,
   minimumMinutes: 90,
   incrementMinutes: 90,
   graceMinutes: 15,
@@ -86,6 +88,14 @@ const beer = {
   trackingType: "STANDARD",
   basePrice: "3500.0000",
 };
+const roomRate = {
+  id: "product-room",
+  tenantId: "tenant-1",
+  name: "Spa room SUITE1",
+  categoryName: "Spa Rooms",
+  trackingType: "SERVICE",
+  basePrice: "30000.0000",
+};
 const scrubVariant = { id: "variant-scrub", productId: "product-scrub", priceModifier: "0" };
 
 let rooms = [room("wallet-1")];
@@ -93,6 +103,10 @@ let lines: Record<string, unknown>[] = [];
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
+}));
+
+vi.mock("@/components/LanguageSwitcher", () => ({
+  LanguageSwitcher: () => null,
 }));
 
 vi.mock("@/core/presentation/hooks/useSpaManagement", () => ({
@@ -120,7 +134,7 @@ vi.mock("@/core/presentation/hooks/useSpaManagement", () => ({
 
 vi.mock("@/core/presentation/hooks/useCashier", () => ({
   useCashier: () => ({
-    products: [scrub, beer],
+    products: [scrub, beer, roomRate],
     variantsByProductId: {
       "product-scrub": [scrubVariant],
       "product-beer": [{ id: "variant-beer", productId: "product-beer", priceModifier: "0" }],
@@ -348,23 +362,33 @@ describe("SpaBoardPage", () => {
     expect(mocks.lookupCard).not.toHaveBeenCalled();
   });
 
-  it("picks a room's treatment by name and price, not by id", async () => {
+  it("prices a room with a plain number", async () => {
     mocks.updateRoom.mockResolvedValue(room("wallet-1"));
     renderPage();
     fireEvent.click(screen.getByRole("button", { name: "spa.manageRoom" }));
 
-    const picker = screen.getByRole("combobox");
-    expect(screen.getByRole("option", { name: "Foot Scrub — 6,000" })).toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: /Myanmar Beer/ })).not.toBeInTheDocument();
-    fireEvent.change(picker, { target: { value: "variant-scrub" } });
+    const price = screen.getByLabelText("spa.sessionPriceLabel");
+    expect(price).toHaveValue(30000);
+    fireEvent.change(price, { target: { value: "25000" } });
     fireEvent.click(screen.getByRole("button", { name: "common.save" }));
 
     await waitFor(() =>
       expect(mocks.updateRoom).toHaveBeenCalledWith(
         "room-1",
-        expect.objectContaining({ rateVariantId: "variant-scrub" })
+        expect.objectContaining({ sessionPrice: 25000 })
       )
     );
+    expect(mocks.updateRoom.mock.calls[0][1]).not.toHaveProperty("rateVariantId");
+  });
+
+  it("shows the menu by category, without the room's own price", async () => {
+    await openRunningRoom();
+
+    expect(screen.queryByRole("button", { name: /Spa room SUITE1/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Spa Services" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Beer & Spirits" }));
+    expect(screen.getByRole("button", { name: /Myanmar Beer/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Foot Scrub/ })).not.toBeInTheDocument();
   });
 
   it("starts a treatment for several sessions after a card tap", async () => {
@@ -383,7 +407,8 @@ describe("SpaBoardPage", () => {
     for (let i = 0; i < 4; i += 1) {
       fireEvent.click(screen.getByRole("button", { name: "spa.moreSessions" }));
     }
-    fireEvent.click(screen.getByRole("button", { name: "spa.startSession" }));
+    fireEvent.click(await screen.findByRole("button", { name: "spa.addService" }));
+    fireEvent.click(await screen.findByRole("button", { name: "spa.startAndPay" }));
     await tapCard();
 
     await waitFor(() =>
@@ -392,6 +417,7 @@ describe("SpaBoardPage", () => {
           roomId: "room-1",
           guestWalletId: "wallet-1",
           sessions: 5,
+          items: [{ variantId: "variant-scrub", quantity: 1 }],
           prepay: expect.objectContaining({
             guestCardId: "card-1",
             paymentMethodId: "card-method",

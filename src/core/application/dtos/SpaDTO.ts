@@ -9,7 +9,8 @@ export interface CreateSpaRoomDTO {
   roomNumber: string;
   name: string;
   capacity: number;
-  rateVariantId: string;
+  rateVariantId?: string;
+  sessionPrice?: number;
   minimumMinutes: number;
   incrementMinutes: number;
   graceMinutes: number;
@@ -33,6 +34,7 @@ export interface OpenSpaSessionDTO {
   guestCount?: number;
   plannedMinutes?: number;
   sessions?: number;
+  items?: { variantId: string; quantity: number }[];
   prepay?: SpaCardChargeDTO;
   posRegisterId?: string;
   openedByPosSessionId?: string;

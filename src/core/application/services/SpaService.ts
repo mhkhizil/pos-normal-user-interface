@@ -25,7 +25,11 @@ export class SpaService implements ISpaService {
   createRoom(payload: CreateSpaRoomDTO): Promise<SpaRoom> {
     requireId(payload.locationId, "Location");
     requireId(payload.roomNumber, "Room number");
-    requireId(payload.rateVariantId, "Treatment rate variant");
+    if (payload.sessionPrice === undefined) {
+      requireId(payload.rateVariantId, "Room price");
+    } else if (!(payload.sessionPrice >= 0)) {
+      throw new Error("Room price must be zero or more");
+    }
     if (payload.capacity < 1) throw new Error("Room capacity must be at least 1");
     if (payload.minimumMinutes < 1 || payload.incrementMinutes < 1) {
       throw new Error("Treatment length must be greater than zero");

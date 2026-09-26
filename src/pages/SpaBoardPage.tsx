@@ -1,6 +1,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { Button } from "@/components/ui/Button";
 import { SettleSalesOrderResultDTO } from "@/core/application/dtos/SalesOrderDTO";
 import {
@@ -66,7 +67,7 @@ const emptyRoomForm = {
   roomNumber: "",
   name: "",
   capacity: "1",
-  rateVariantId: "",
+  sessionPrice: "",
   treatmentMinutes: "60",
   graceMinutes: "15",
 };
@@ -147,6 +148,7 @@ export function SpaBoardPage() {
   const [showRoomForm, setShowRoomForm] = useState(false);
   const [editingRoom, setEditingRoom] = useState<SpaRoom | null>(null);
   const [roomForm, setRoomForm] = useState(emptyRoomForm);
+  const [startItems, setStartItems] = useState<PendingItem[]>([]);
 
   const room = rooms.find((item) => item.id === selectedRoomId) || null;
   const openSessions = useMemo(
@@ -185,49 +187,31 @@ export function SpaBoardPage() {
       }, {}),
     [pending]
   );
-  const treatmentOptions = useMemo(() => {
-    const spaFirst = (name?: string) => (/spa|treat|massage/i.test(name || "") ? 0 : 1);
-    const typed = products.some((product) => product.trackingType);
-    const isTreatment = (product: Product) =>
-      !/ktv|karaoke/i.test(product.categoryName || "") &&
-      (typed
-        ? product.trackingType === "SERVICE"
-        : /spa|treat|massage/i.test(product.categoryName || ""));
-    return products
-      .filter(isTreatment)
-      .sort(
-        (left, right) =>
-          spaFirst(left.categoryName) - spaFirst(right.categoryName) ||
-          (left.categoryName || "").localeCompare(right.categoryName || "") ||
-          left.name.localeCompare(right.name)
-      )
-      .flatMap((product) => {
-        const variants = variantsByProductId[product.id] || [];
-        return variants.map((variant) => ({
-          value: variant.id,
-          group: product.categoryName || t("spa.otherProducts"),
-          price: Number(product.basePrice || 0) + Number(variant.priceModifier || 0),
-          label: `${product.name}${
-            variants.length > 1 && variant.variantSku ? ` · ${variant.variantSku}` : ""
-          } — ${money(Number(product.basePrice || 0) + Number(variant.priceModifier || 0))}`,
-          minutes: Number(/(\d+)\s*min/i.exec(product.name)?.[1] || 0),
-        }));
-      });
-  }, [products, t, variantsByProductId]);
-  const treatmentGroups = useMemo(
+  const roomSessionPrice = room?.sessionPrice;
+  const rateProductIds = useMemo(
+    () => new Set(rooms.map((item) => item.rateProductId).filter(Boolean)),
+    [rooms]
+  );
+  const menuProducts = useMemo(
+    () => products.filter((product) => !rateProductIds.has(product.id)),
+    [products, rateProductIds]
+  );
+  const serviceGroups = useMemo(
     () =>
-      treatmentOptions.reduce<Record<string, typeof treatmentOptions>>((groups, option) => {
-        (groups[option.group] ||= []).push(option);
-        return groups;
-      }, {}),
-    [treatmentOptions]
+      menuProducts
+        .filter(
+          (product) =>
+            product.trackingType === "SERVICE" &&
+            !/ktv|karaoke/i.test(product.categoryName || "")
+        )
+        .reduce<Record<string, Product[]>>((groups, product) => {
+          (groups[product.categoryName || t("spa.otherServices")] ||= []).push(product);
+          return groups;
+        }, {}),
+    [menuProducts, t]
   );
-  const selectedTreatment = treatmentOptions.find(
-    (option) => option.value === roomForm.rateVariantId
-  );
-  const roomSessionPrice = treatmentOptions.find(
-    (option) => option.value === room?.rateVariantId
-  )?.price;
+  const startCharge =
+    (roomSessionPrice || 0) * sessionCount + pendingTotal(startItems);
   const visibleRooms = useMemo(
     () =>
       rooms.filter((item) => {
@@ -296,32 +280,6 @@ export function SpaBoardPage() {
     }, 60000);
     return () => window.clearInterval(timer);
   }, [billClosed, getQuote, session, step]);
-
-  const requestedVariants = useRef(new Set<string>());
-  const needsTreatmentPrices = showRoomForm || step === "sessions";
-  useEffect(() => {
-    if (!needsTreatmentPrices) return;
-    let cancelled = false;
-    const missing = products.filter(
-      (product) =>
-        !variantsByProductId[product.id] && !requestedVariants.current.has(product.id)
-    );
-    void (async () => {
-      for (const product of missing) {
-        if (cancelled) return;
-        requestedVariants.current.add(product.id);
-        try {
-          await fetchProductVariants(product.id);
-        } catch {
-          requestedVariants.current.delete(product.id);
-        }
-        await new Promise((resolve) => window.setTimeout(resolve, 400));
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [fetchProductVariants, needsTreatmentPrices, products, variantsByProductId]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNowMs(Date.now()), 30000);
@@ -396,6 +354,7 @@ export function SpaBoardPage() {
     clearQuote();
     setGuestCount("1");
     setSessionCount(1);
+    setStartItems([]);
     const running = next.sessions.filter(isOpenSpaSession);
     if (running.length === 1) {
       void selectSession(running[0]);
@@ -447,12 +406,21 @@ export function SpaBoardPage() {
         guestWalletId: payer.id,
         guestCount: Math.max(1, Number(guestCount) || 1),
         sessions: sessionCount,
+        ...(startItems.length
+          ? {
+              items: startItems.map((item) => ({
+                variantId: item.variantId,
+                quantity: item.quantity,
+              })),
+            }
+          : {}),
         prepay: charge,
         posRegisterId: context.posRegisterId,
         openedByPosSessionId: context.posSessionId,
         salesChannel: "POS",
       });
       tapKeys.current.open = undefined;
+      setStartItems([]);
       await fetchBoard();
       await selectSession(created);
       setWallet(await getWallet(payer.id));
@@ -635,6 +603,33 @@ export function SpaBoardPage() {
     );
   };
 
+  const addStartService = async (product: Product, delta: number) => {
+    const existing = startItems.find((item) => item.productId === product.id);
+    if (existing) {
+      setStartItems((current) => changePending(current, existing.variantId, delta));
+      return;
+    }
+    if (delta < 0) return;
+    setActionError(null);
+    try {
+      const variants = variantsByProductId[product.id]?.length
+        ? variantsByProductId[product.id]
+        : await fetchProductVariants(product.id);
+      const variant = variants[0];
+      if (!variant) throw new Error(t("cashier.productMenu.noVariant"));
+      setStartItems((current) =>
+        addPending(current, {
+          variantId: variant.id,
+          productId: product.id,
+          name: product.name,
+          unitPrice: Number(product.basePrice || 0) + Number(variant.priceModifier || 0),
+        })
+      );
+    } catch (caught) {
+      setActionError(caught instanceof Error ? caught.message : t("spa.errors.editLine"));
+    }
+  };
+
   const addAnother = (line: SalesOrderLine) => {
     const product = products.find((item) =>
       (variantsByProductId[item.id] || []).some((variant) => variant.id === line.variantId)
@@ -771,7 +766,7 @@ export function SpaBoardPage() {
       roomNumber: roomForm.roomNumber.trim(),
       name: roomForm.name.trim(),
       capacity: Number(roomForm.capacity),
-      rateVariantId: roomForm.rateVariantId.trim(),
+      sessionPrice: Number(roomForm.sessionPrice),
       minimumMinutes: minutes,
       incrementMinutes: minutes,
       graceMinutes: Number(roomForm.graceMinutes),
@@ -795,7 +790,7 @@ export function SpaBoardPage() {
       roomNumber: managed.roomNumber,
       name: managed.name,
       capacity: String(managed.capacity),
-      rateVariantId: managed.rateVariantId,
+      sessionPrice: managed.sessionPrice == null ? "" : String(managed.sessionPrice),
       treatmentMinutes: String(managed.minimumMinutes),
       graceMinutes: String(managed.graceMinutes),
     });
@@ -824,7 +819,8 @@ export function SpaBoardPage() {
           <h1 className="text-xl font-bold">{t("spa.boardTitle")}</h1>
           <p className="text-sm text-slate-400">{t(`spa.steps.${step}`)}</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          <LanguageSwitcher />
           {step !== "rooms" && !(step === "pay" && billClosed) && !paid ? (
             <Button variant="secondary" onClick={goBack}>
               {step === "pay" ? t("cardTopup.back") : t("spa.backToBoard")}
@@ -958,6 +954,58 @@ export function SpaBoardPage() {
                   ? ` · ${money(roomSessionPrice * sessionCount)}`
                   : ""}
               </p>
+              {Object.keys(serviceGroups).length ? (
+                <div className="space-y-2">
+                  <p className="text-sm text-slate-300">{t("spa.chooseServices")}</p>
+                  <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
+                    {Object.entries(serviceGroups).map(([group, services]) => (
+                      <div key={group}>
+                        <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          {group}
+                        </p>
+                        {services.map((service) => {
+                          const chosen = startItems.find(
+                            (item) => item.productId === service.id
+                          );
+                          return (
+                            <div
+                              key={service.id}
+                              className="flex items-center justify-between gap-2 py-1 text-sm"
+                            >
+                              <span className="min-w-0 flex-1 truncate">{service.name}</span>
+                              <span className="shrink-0 text-slate-400">
+                                {money(service.basePrice)}
+                              </span>
+                              <div className="flex shrink-0 items-center rounded bg-slate-800">
+                                <button
+                                  type="button"
+                                  aria-label={t("spa.decreaseNew")}
+                                  className="h-8 w-8 disabled:opacity-40"
+                                  disabled={!chosen}
+                                  onClick={() => void addStartService(service, -1)}
+                                >
+                                  −
+                                </button>
+                                <span className="w-6 text-center text-xs font-semibold">
+                                  {chosen?.quantity || 0}
+                                </span>
+                                <button
+                                  type="button"
+                                  aria-label={t("spa.addService", { name: service.name })}
+                                  className="h-8 w-8"
+                                  onClick={() => void addStartService(service, 1)}
+                                >
+                                  +
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
               <label className="block text-sm text-slate-300">
                 {t("spa.guestCountLabel")}
                 <input
@@ -970,7 +1018,9 @@ export function SpaBoardPage() {
                 />
               </label>
               <Button type="submit" isLoading={isLoading}>
-                {t("spa.startSession")}
+                {roomSessionPrice !== undefined
+                  ? t("spa.startAndPay", { amount: money(startCharge) })
+                  : t("spa.startSession")}
               </Button>
             </form>
           ) : null}
@@ -1032,7 +1082,8 @@ export function SpaBoardPage() {
 
           {step === "menu" ? (
             <ProductMenu
-              products={products}
+              products={menuProducts}
+              groupByCategory
               variantsByProductId={variantsByProductId}
               orderedProductQuantities={pendingByProduct}
               onLoadVariants={fetchProductVariants}
@@ -1149,14 +1200,35 @@ export function SpaBoardPage() {
               {roomSessionPrice ? <span>{money(roomSessionPrice * extendCount)}</span> : null}
             </p>
           ) : cardPrompt === "open" ? (
-            <p>
-              {t("spa.startSummary", {
-                room: room?.roomNumber || "",
-                sessions: sessionCount,
-                minutes: sessionCount * sessionMinutes(room),
-                count: Math.max(1, Number(guestCount) || 1),
-              })}
-            </p>
+            <>
+              <p className="flex justify-between gap-2">
+                <span>
+                  {t("spa.startSummary", {
+                    room: room?.roomNumber || "",
+                    sessions: sessionCount,
+                    minutes: sessionCount * sessionMinutes(room),
+                    count: Math.max(1, Number(guestCount) || 1),
+                  })}
+                </span>
+                {roomSessionPrice !== undefined ? (
+                  <span>{money(roomSessionPrice * sessionCount)}</span>
+                ) : null}
+              </p>
+              {startItems.map((item) => (
+                <p key={item.variantId} className="flex justify-between">
+                  <span>
+                    {item.name} × {item.quantity}
+                  </span>
+                  <span>{money(item.unitPrice * item.quantity)}</span>
+                </p>
+              ))}
+              {roomSessionPrice !== undefined ? (
+                <p className="mt-1 flex justify-between border-t border-slate-800 pt-1 font-semibold">
+                  <span>{t("spa.toPay")}</span>
+                  <span>{money(startCharge)}</span>
+                </p>
+              ) : null}
+            </>
           ) : (
             <p className="flex justify-between font-semibold">
               <span>{t("spa.runningTotal")}</span>
@@ -1293,40 +1365,19 @@ export function SpaBoardPage() {
               </label>
             ))}
             <label className="text-sm">
-              {t("spa.treatment")}
-              <select
-                value={roomForm.rateVariantId}
-                onChange={(event) => {
-                  const option = treatmentOptions.find(
-                    (item) => item.value === event.target.value
-                  );
-                  setRoomForm((current) => ({
-                    ...current,
-                    rateVariantId: event.target.value,
-                    treatmentMinutes: option?.minutes
-                      ? String(option.minutes)
-                      : current.treatmentMinutes,
-                  }));
-                }}
+              {t("spa.sessionPriceLabel")}
+              <input
+                type="number"
+                min={0}
+                step="any"
+                inputMode="decimal"
+                value={roomForm.sessionPrice}
+                onChange={(event) =>
+                  setRoomForm((current) => ({ ...current, sessionPrice: event.target.value }))
+                }
                 className="mt-1 w-full rounded border border-slate-700 bg-slate-900 px-3 py-2"
                 required
-              >
-                <option value="" disabled>
-                  {t("spa.chooseTreatment")}
-                </option>
-                {roomForm.rateVariantId && !selectedTreatment ? (
-                  <option value={roomForm.rateVariantId}>{t("spa.loadingTreatments")}</option>
-                ) : null}
-                {Object.entries(treatmentGroups).map(([group, options]) => (
-                  <optgroup key={group} label={group}>
-                    {options.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
+              />
             </label>
             {(
               [
@@ -1348,37 +1399,14 @@ export function SpaBoardPage() {
                 />
               </label>
             ))}
-            {selectedTreatment?.minutes &&
-            selectedTreatment.minutes !== Number(roomForm.treatmentMinutes) ? (
-              <p className="col-span-2 flex items-center justify-between gap-2 rounded border border-amber-500/60 bg-amber-950/40 p-2 text-xs text-amber-200">
-                <span>
-                  {t("spa.lengthMismatch", {
-                    minutes: selectedTreatment.minutes,
-                    length: roomForm.treatmentMinutes,
-                  })}
-                </span>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() =>
-                    setRoomForm((current) => ({
-                      ...current,
-                      treatmentMinutes: String(selectedTreatment.minutes),
-                    }))
-                  }
-                >
-                  {t("spa.useLength", { minutes: selectedTreatment.minutes })}
-                </Button>
-              </p>
-            ) : null}
             <p className="col-span-2 text-xs text-slate-400">
-              {selectedTreatment
-                ? t("spa.rateSummary", {
-                    treatment: selectedTreatment.label,
+              {roomForm.sessionPrice !== ""
+                ? t("spa.priceSummary", {
+                    price: money(roomForm.sessionPrice),
                     minutes: roomForm.treatmentMinutes,
                     grace: roomForm.graceMinutes,
                   })
-                : t("spa.rateHint")}
+                : t("spa.priceHint")}
             </p>
             <div className="col-span-2 flex justify-end gap-2">
               {editingRoom ? (

@@ -40,6 +40,8 @@ export class SpaRoom {
   name!: string;
   capacity!: number;
   rateVariantId!: string;
+  sessionPrice?: number;
+  rateProductId?: string;
   minimumMinutes!: number;
   incrementMinutes!: number;
   graceMinutes!: number;

@@ -86,7 +86,7 @@ export function SpaBillPanel({
   ].join(" · ");
 
   return (
-    <aside className="flex min-h-0 flex-col gap-3 overflow-y-auto rounded-lg border border-slate-800 p-3">
+    <aside className="flex min-h-0 flex-col gap-3 rounded-lg border border-slate-800 p-3 lg:overflow-hidden">
       <div className="flex items-center justify-between gap-2">
         <p className="truncate text-lg font-bold">
           {room?.roomNumber || quote?.roomNumber}
@@ -156,7 +156,7 @@ export function SpaBillPanel({
         </p>
       </div>
 
-      <section className="min-h-0 flex-1 divide-y divide-slate-800 border-y border-slate-800">
+      <section className="min-h-[5rem] flex-1 divide-y divide-slate-800 overflow-y-auto border-y border-slate-800">
         {visibleLines.length === 0 ? (
           <p className="py-3 text-xs text-slate-500">{t("spa.noLines")}</p>
         ) : (
@@ -240,48 +240,50 @@ export function SpaBillPanel({
       </section>
 
       {pending.length ? (
-        <section className="space-y-1 rounded border border-teal-700/70 bg-teal-950/20 p-2">
+        <section className="flex shrink-0 flex-col gap-1 rounded border border-teal-700/70 bg-teal-950/20 p-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-teal-300">
-            {t("spa.newItems")}
+            {t("spa.newItems")} · {pendingCount}
           </p>
-          {pending.map((item) => (
-            <div key={item.variantId} className="flex items-center gap-2 text-sm">
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-medium">{item.name}</p>
-                <p className="text-xs text-slate-500">{money(item.unitPrice)}</p>
-              </div>
-              <div className="flex shrink-0 items-center rounded bg-slate-800">
+          <div className="max-h-48 space-y-1 overflow-y-auto pr-1">
+            {pending.map((item) => (
+              <div key={item.variantId} className="flex items-center gap-2 text-sm">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium">{item.name}</p>
+                  <p className="text-xs text-slate-500">{money(item.unitPrice)}</p>
+                </div>
+                <div className="flex shrink-0 items-center rounded bg-slate-800">
+                  <button
+                    type="button"
+                    aria-label={t("spa.decreaseNew")}
+                    className="h-7 w-7 text-base"
+                    onClick={() => onPendingChange(item.variantId, -1)}
+                  >
+                    −
+                  </button>
+                  <span className="w-6 text-center text-xs font-semibold">{item.quantity}</span>
+                  <button
+                    type="button"
+                    aria-label={t("spa.increaseNew")}
+                    className="h-7 w-7 text-base"
+                    onClick={() => onPendingChange(item.variantId, 1)}
+                  >
+                    +
+                  </button>
+                </div>
+                <span className="w-16 shrink-0 text-right font-semibold">
+                  {money(item.unitPrice * item.quantity)}
+                </span>
                 <button
                   type="button"
-                  aria-label={t("spa.decreaseNew")}
-                  className="h-7 w-7 text-base"
-                  onClick={() => onPendingChange(item.variantId, -1)}
+                  aria-label={t("spa.removeNew")}
+                  className="h-7 w-6 shrink-0 rounded text-slate-500 hover:bg-red-950/60 hover:text-red-300"
+                  onClick={() => onPendingChange(item.variantId, -item.quantity)}
                 >
-                  −
-                </button>
-                <span className="w-6 text-center text-xs font-semibold">{item.quantity}</span>
-                <button
-                  type="button"
-                  aria-label={t("spa.increaseNew")}
-                  className="h-7 w-7 text-base"
-                  onClick={() => onPendingChange(item.variantId, 1)}
-                >
-                  +
+                  ✕
                 </button>
               </div>
-              <span className="w-16 shrink-0 text-right font-semibold">
-                {money(item.unitPrice * item.quantity)}
-              </span>
-              <button
-                type="button"
-                aria-label={t("spa.removeNew")}
-                className="h-7 w-6 shrink-0 rounded text-slate-500 hover:bg-red-950/60 hover:text-red-300"
-                onClick={() => onPendingChange(item.variantId, -item.quantity)}
-              >
-                ✕
-              </button>
-            </div>
-          ))}
+            ))}
+          </div>
           <div className="grid grid-cols-[auto_1fr] gap-2 pt-1">
             <Button variant="secondary" disabled={isBusy} onClick={onClearPending}>
               {t("spa.clear")}
@@ -293,7 +295,7 @@ export function SpaBillPanel({
         </section>
       ) : null}
 
-      <section className="space-y-0.5 text-sm">
+      <section className="shrink-0 space-y-0.5 text-sm">
         <p className="flex justify-between text-slate-300">
           <span>{billClosed ? t("spa.treatmentCharge") : t("spa.treatmentSoFar")}</span>
           <span>{money(quote?.treatmentCharge)}</span>
@@ -326,7 +328,7 @@ export function SpaBillPanel({
       </section>
 
       {!billClosed ? (
-        <div className={`grid gap-2 ${prepaid ? "grid-cols-3" : "grid-cols-2"}`}>
+        <div className={`grid shrink-0 gap-2 ${prepaid ? "grid-cols-3" : "grid-cols-2"}`}>
           <Button variant="secondary" disabled={isBusy} onClick={onTogglePause}>
             {isPaused ? t("spa.resume") : t("spa.pause")}
           </Button>

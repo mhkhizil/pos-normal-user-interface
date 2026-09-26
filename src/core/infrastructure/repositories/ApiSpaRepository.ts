@@ -75,6 +75,8 @@ const toRoom = (value: unknown) => {
     name: String(item.name || ""),
     capacity: Number(item.capacity || 1),
     rateVariantId: String(item.rateVariantId || ""),
+    sessionPrice: item.sessionPrice == null ? undefined : Number(item.sessionPrice),
+    rateProductId: optionalString(item.rateProductId),
     minimumMinutes: Number(item.minimumMinutes || 0),
     incrementMinutes: Number(item.incrementMinutes || 0),
     graceMinutes: Number(item.graceMinutes || 0),

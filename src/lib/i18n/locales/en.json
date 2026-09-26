@@ -827,7 +827,8 @@
       "selectTableHint": "Select a table below, then add items to the order.",
       "selectTableOptionalTitle": "Assign a table (optional)",
       "selectTableOptionalHint": "Pick a table for seated dine-in, or add items without a table.",
-      "selectPrompt": "Tap a product to add it to the order."
+      "selectPrompt": "Tap a product to add it to the order.",
+      "otherCategory": "Other"
     },
     "payment": {
       "remaining": "Remaining receivable {{amount}}",
@@ -1166,7 +1167,6 @@
     "capacityLabel": "Guests per room",
     "treatmentLengthLabel": "Session length (minutes)",
     "graceMinutes": "Free overrun (minutes)",
-    "rateHint": "Choose the treatment this room sells; its price is charged once per session.",
     "treatmentMinutes": "{{count}} min",
     "capacity": "Up to {{count}} guests",
     "guestCount": "{{count}} guests",
@@ -1274,11 +1274,6 @@
     "balanceVsTotal": "Card balance {{balance}} is below the new estimated total {{total}}.",
     "addAnyway": "Add anyway, pay the rest in cash",
     "backToBoard": "Room board",
-    "treatment": "Treatment (price per session)",
-    "chooseTreatment": "Choose a treatment…",
-    "loadingTreatments": "Loading treatments…",
-    "otherProducts": "Other products",
-    "rateSummary": "Guests pay {{treatment}} per {{minutes}}-minute session. Running up to {{grace}} minutes over is free.",
     "sessions": "Sessions",
     "fewerSessions": "Fewer sessions",
     "moreSessions": "More sessions",
@@ -1297,8 +1292,14 @@
     "endDescription": "Paid so far {{amount}}. Nothing more will be charged, and the room goes for cleaning.",
     "treatmentEnded": "Treatment in {{room}} ended · paid {{amount}}.",
     "refundLine": "Refund to card",
-    "lengthMismatch": "This treatment is {{minutes}} min, but the session length is {{length}} min.",
-    "useLength": "Use {{minutes}} min"
+    "sessionPriceLabel": "Room price per session",
+    "priceSummary": "Guests pay {{price}} for each {{minutes}}-minute session. {{grace}} minutes of grace.",
+    "priceHint": "Enter what one session in this room costs.",
+    "chooseServices": "Services",
+    "otherServices": "Other services",
+    "addService": "Add {{name}}",
+    "startAndPay": "Start · pay {{amount}}",
+    "toPay": "To pay"
   },
   "statusBadge": {
     "verified": "Verified",
