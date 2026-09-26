@@ -80,9 +80,11 @@
     overflow-y: visible;
   }
 
-  .pos-app-shell > aside {
+  .pos-app-shell > .pos-icon-rail {
     position: sticky;
     top: 0;
+    grid-column: 1;
+    grid-row: 1;
     align-self: start;
     height: 100dvh;
     max-height: 100dvh;
@@ -90,7 +92,26 @@
     overflow: hidden;
   }
 
+  .pos-app-shell > .pos-action-rail {
+    position: sticky;
+    top: 0;
+    grid-column: 3;
+    grid-row: 1;
+    align-self: start;
+    height: 100dvh;
+    max-height: 100dvh;
+    min-width: 6.5rem;
+    overflow: hidden;
+    z-index: 20;
+  }
+
+  .pos-app-shell:has(> .pos-action-rail) {
+    grid-template-columns: 3.5rem minmax(0, 1fr) 6.5rem;
+  }
+
   .pos-app-shell main {
+    grid-column: 2;
+    grid-row: 1;
     width: 100%;
     max-width: 100%;
     min-width: 0;
