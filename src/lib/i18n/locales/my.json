@@ -1251,8 +1251,6 @@
       "editLine": "ဘေလ်ပေါ်ရှိ ဤပစ္စည်းကို ပြောင်း၍ မရပါ။"
     },
     "item": "ပစ္စည်း",
-    "tapCardForRoom": "အခန်း {{room}} ဆက်လုပ်ရန် ဧည့်သည်ကတ်ကို ထိပါ။",
-    "continueToRoom": "{{room}} သို့ ဆက်သွားမည်",
     "tabBalance": "အကြွေးစာရင်း: {{amount}}",
     "treatmentSoFar": "ယခုအထိ ကုသမှု",
     "discountLine": "အဖွဲ့ဝင်လျှော့စျေး ({{percent}}%)",
@@ -1264,7 +1262,15 @@
     "lineRemoved": "ဘေလ်မှ ဖယ်ပြီး။",
     "startedShort": "{{time}} မှစ၍",
     "minutesOfBooked": "{{count}}/{{booked}} မိနစ်",
-    "minutesLeft": "{{count}} မိနစ် ကျန်"
+    "minutesLeft": "{{count}} မိနစ် ကျန်",
+    "continue": "ဆက်လုပ်မည်",
+    "tapCard": "ဧည့်သည်ကတ် ထိမည်",
+    "cardNeededToAdd": "ဤဘေလ်သို့ ဝန်ဆောင်မှုထည့်ရန် ဧည့်သည်ကတ်ကို ထိပါ။",
+    "cardFor": {
+      "open": "{{room}} တွင် ကုသမှုစတင်ရန် ဧည့်သည်ကတ်ကို ထိပါ။",
+      "menu": "ဝန်ဆောင်မှုထည့်ရန် ဧည့်သည်ကတ်ကို ထိပါ။",
+      "pay": "ငွေပေးချေရန် ဧည့်သည်ကတ်ကို ထိပါ။"
+    }
   },
   "statusBadge": {
     "verified": "အတည်ပြုပြီး",

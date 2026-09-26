@@ -35,6 +35,7 @@ import { SpaBillPanel } from "./spa/SpaBillPanel";
 import { SpaRoomTile } from "./spa/SpaRoomTile";
 
 type SpaStep = "card" | "rooms" | "sessions" | "menu" | "pay";
+type CardAction = "open" | "menu" | "pay";
 
 const RESUME_KEY = "spa-pos-resume";
 type ResumeState = { roomId?: string; session?: SpaSession };
@@ -117,6 +118,7 @@ export function SpaBoardPage() {
   const [guestCount, setGuestCount] = useState("1");
   const [plannedMinutes, setPlannedMinutes] = useState(60);
   const [cardUid, setCardUid] = useState("");
+  const [cardFor, setCardFor] = useState<CardAction | null>(null);
   const [card, setCard] = useState<GuestCard | null>(null);
   const [wallet, setWallet] = useState<GuestWallet | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -280,18 +282,59 @@ export function SpaBoardPage() {
     });
   };
 
+  const requireCard = (action: CardAction) => {
+    setCardFor(action);
+    setActionError(null);
+    setNotice(t(`spa.cardFor.${action}`, { room: room?.roomNumber || "" }));
+    setStep("card");
+  };
+
+  const backToBoard = () => {
+    setSession(null);
+    clearQuote();
+    setSelectedRoomId("");
+    setCard(null);
+    setWallet(null);
+    setCardUid("");
+    setCardFor(null);
+    setPaid(null);
+    setNotice(null);
+    setActionError(null);
+    setStep("rooms");
+  };
+
   const selectRoom = (next: SpaRoom) => {
     setSelectedRoomId(next.id);
-    if (!wallet) {
-      setNotice(t("spa.tapCardForRoom", { room: next.roomNumber }));
-      setStep("card");
-      return;
-    }
     setSession(null);
     clearQuote();
     setGuestCount("1");
     setPlannedMinutes(treatmentLengthOptions(next)[0]);
+    const running = next.sessions.filter(isOpenSpaSession);
+    if (running.length === 1) {
+      void selectSession(running[0]);
+      return;
+    }
     setStep("sessions");
+  };
+
+  const continueAfterCard = () => {
+    if (!wallet) return;
+    const action = cardFor;
+    setCardFor(null);
+    setNotice(null);
+    if (session && action !== "open") {
+      if (session.guestWalletId && session.guestWalletId !== wallet.id) {
+        setCard(null);
+        setWallet(null);
+        setCardUid("");
+        setCardFor(action);
+        setActionError(t("spa.errors.wrongSessionCard"));
+        return;
+      }
+      setStep(action || "menu");
+      return;
+    }
+    setStep(room ? "sessions" : "rooms");
   };
 
   const selectSession = async (next: SpaSession) => {
@@ -311,7 +354,11 @@ export function SpaBoardPage() {
 
   const handleOpenSession = async (event: FormEvent) => {
     event.preventDefault();
-    if (!room || !wallet) return;
+    if (!room) return;
+    if (!wallet) {
+      requireCard("open");
+      return;
+    }
     setActionError(null);
     try {
       const context = await requireCashierContext();
@@ -381,6 +428,10 @@ export function SpaBoardPage() {
 
   const changeQuantity = async (line: SalesOrderLine, delta: number) => {
     if (!session?.salesOrderId || billClosed) return;
+    if (delta > 0 && !wallet) {
+      requireCard("menu");
+      return;
+    }
     const next = Number(line.quantity || 0) + delta;
     setActionError(null);
     try {
@@ -500,6 +551,14 @@ export function SpaBoardPage() {
     setStep("rooms");
   };
 
+  const goToPay = () => {
+    if (!wallet) {
+      requireCard("pay");
+      return;
+    }
+    setStep("pay");
+  };
+
   const handleSaveRoom = async (event: FormEvent) => {
     event.preventDefault();
     if (!activeLocationId) return;
@@ -543,8 +602,15 @@ export function SpaBoardPage() {
   const goBack = () => {
     setActionError(null);
     if (step === "pay") setStep(billClosed ? "pay" : "menu");
-    else if (step === "menu") setStep("sessions");
-    else setStep("rooms");
+    else if (step === "card" && session) {
+      setCardFor(null);
+      setNotice(null);
+      setStep(billClosed ? "pay" : "menu");
+    } else if (step === "card" && cardFor === "open") {
+      setCardFor(null);
+      setNotice(null);
+      setStep("sessions");
+    } else backToBoard();
   };
 
   return (
@@ -627,13 +693,7 @@ export function SpaBoardPage() {
                 <Button variant="secondary" onClick={openTopup}>
                   {t("spa.topUpCard")}
                 </Button>
-                {room ? (
-                  <Button onClick={() => selectRoom(room)}>
-                    {t("spa.continueToRoom", { room: room.roomNumber })}
-                  </Button>
-                ) : (
-                  <Button onClick={() => setStep("rooms")}>{t("spa.selectRoom")}</Button>
-                )}
+                <Button onClick={continueAfterCard}>{t("spa.continue")}</Button>
               </div>
             </div>
           ) : null}
@@ -766,13 +826,18 @@ export function SpaBoardPage() {
             isBusy={isLoading || isPaying}
             billClosed={billClosed}
             primaryLabel={step === "menu" ? t("spa.goToPay") : t("spa.addServices")}
-            onPrimary={() => setStep(step === "menu" ? "pay" : "menu")}
+            onPrimary={() => (step === "menu" ? goToPay() : setStep("menu"))}
             onTogglePause={() => void togglePause()}
             onChangeQuantity={(line, delta) => void changeQuantity(line, delta)}
             onRemoveLine={(line) => void removeLine(line)}
           />
 
-          {step === "menu" ? (
+          {step === "menu" && !wallet ? (
+            <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-slate-700 p-8 text-center">
+              <p className="text-slate-300">{t("spa.cardNeededToAdd")}</p>
+              <Button onClick={() => requireCard("menu")}>{t("spa.tapCard")}</Button>
+            </div>
+          ) : step === "menu" ? (
             <ProductMenu
               products={products}
               variantsByProductId={variantsByProductId}

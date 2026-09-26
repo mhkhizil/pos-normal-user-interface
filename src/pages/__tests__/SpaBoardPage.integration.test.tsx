@@ -141,19 +141,32 @@ vi.mock("@/core/presentation/hooks/useCardCapture", () => ({
   }),
 }));
 
-const tapCardAndOpenRoom = async () => {
+const renderPage = () =>
   render(
     <MemoryRouter initialEntries={["/spa"]}>
       <SpaBoardPage />
     </MemoryRouter>
   );
+
+const openRunningRoom = async () => {
+  renderPage();
   fireEvent.click(screen.getByRole("button", { name: /SUITE1/ }));
+  await screen.findByRole("button", { name: "spa.goToPay" });
+};
+
+const tapCard = async (uid = "04A3B2C1") => {
   fireEvent.change(screen.getByPlaceholderText("spa.cardUid"), {
-    target: { value: "04A3B2C1" },
+    target: { value: uid },
   });
   fireEvent.click(screen.getByRole("button", { name: "spa.checkCard" }));
-  fireEvent.click(await screen.findByRole("button", { name: "spa.continueToRoom" }));
-  fireEvent.click(screen.getByRole("button", { name: /spa.sessionOption/ }));
+  fireEvent.click(await screen.findByRole("button", { name: "spa.continue" }));
+};
+
+const openRoomAndTapCardToPay = async () => {
+  await openRunningRoom();
+  fireEvent.click(screen.getByRole("button", { name: "spa.goToPay" }));
+  await tapCard();
+  await screen.findByRole("button", { name: "spa.confirmPay" });
 };
 
 describe("SpaBoardPage", () => {
@@ -184,8 +197,7 @@ describe("SpaBoardPage", () => {
   });
 
   it("closes the treatment, then settles its bill on the card under one key", async () => {
-    await tapCardAndOpenRoom();
-    fireEvent.click(await screen.findByRole("button", { name: "spa.goToPay" }));
+    await openRoomAndTapCardToPay();
     fireEvent.click(screen.getByRole("button", { name: "spa.confirmPay" }));
 
     await waitFor(() =>
@@ -203,8 +215,7 @@ describe("SpaBoardPage", () => {
   });
 
   it("splits the bill with cash when asked", async () => {
-    await tapCardAndOpenRoom();
-    fireEvent.click(await screen.findByRole("button", { name: "spa.goToPay" }));
+    await openRoomAndTapCardToPay();
     fireEvent.click(screen.getByLabelText("spa.splitCash"));
     fireEvent.change(screen.getByLabelText("spa.cashAmount"), {
       target: { value: "20000" },
@@ -226,22 +237,27 @@ describe("SpaBoardPage", () => {
 
   it("refuses a card that did not open the treatment", async () => {
     rooms = [room("someone-else")];
-    await tapCardAndOpenRoom();
+    await openRunningRoom();
+    fireEvent.click(screen.getByRole("button", { name: "spa.goToPay" }));
+    await tapCard();
 
     expect(await screen.findByText("spa.errors.wrongSessionCard")).toBeInTheDocument();
-    expect(mocks.getQuote).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "spa.confirmPay" })).not.toBeInTheDocument();
   });
 
-  it("opens on the room board and asks for the card when a room is picked", async () => {
-    render(
-      <MemoryRouter initialEntries={["/spa"]}>
-        <SpaBoardPage />
-      </MemoryRouter>
-    );
-    expect(screen.queryByPlaceholderText("spa.cardUid")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /SUITE1/ }));
+  it("lets staff open a running room and see its bill without a card", async () => {
+    await openRunningRoom();
 
-    expect(await screen.findByText("spa.tapCardForRoom")).toBeInTheDocument();
+    expect(mocks.getQuote).toHaveBeenCalledWith("session-1");
+    expect(screen.queryByPlaceholderText("spa.cardUid")).not.toBeInTheDocument();
+    expect(screen.getByText("spa.cardNeededToAdd")).toBeInTheDocument();
+  });
+
+  it("asks for the card before adding services", async () => {
+    await openRunningRoom();
+    fireEvent.click(screen.getByRole("button", { name: "spa.tapCard" }));
+
+    expect(await screen.findByText("spa.cardFor.menu")).toBeInTheDocument();
     expect(screen.getByPlaceholderText("spa.cardUid")).toBeInTheDocument();
   });
 
@@ -257,7 +273,7 @@ describe("SpaBoardPage", () => {
         status: "PENDING",
       },
     ];
-    await tapCardAndOpenRoom();
+    await openRunningRoom();
 
     expect(await screen.findByText("Foot Scrub")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "spa.decrease" }));

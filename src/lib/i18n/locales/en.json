@@ -1251,8 +1251,6 @@
       "editLine": "Unable to change this item on the bill."
     },
     "item": "Item",
-    "tapCardForRoom": "Tap the guest card to continue with room {{room}}.",
-    "continueToRoom": "Continue to {{room}}",
     "tabBalance": "Tab: {{amount}}",
     "treatmentSoFar": "Treatment so far",
     "discountLine": "Member discount ({{percent}}%)",
@@ -1264,7 +1262,15 @@
     "lineRemoved": "Removed from the bill.",
     "startedShort": "Since {{time}}",
     "minutesOfBooked": "{{count}}/{{booked}} min",
-    "minutesLeft": "{{count}} min left"
+    "minutesLeft": "{{count}} min left",
+    "continue": "Continue",
+    "tapCard": "Tap guest card",
+    "cardNeededToAdd": "Tap the guest card to add services to this bill.",
+    "cardFor": {
+      "open": "Tap the guest card to start a treatment in {{room}}.",
+      "menu": "Tap the guest card to add services.",
+      "pay": "Tap the guest card to pay."
+    }
   },
   "statusBadge": {
     "verified": "Verified",
