@@ -13,3 +13,13 @@ export interface TabletExtendDTO {
   idempotencyKey: string;
   deviceName?: string;
 }
+
+export interface TabletStartDTO {
+  cardUid: string;
+  roomId: string;
+  sessions: number;
+  guestCount?: number;
+  items?: { variantId: string; quantity: number }[];
+  idempotencyKey: string;
+  deviceName?: string;
+}

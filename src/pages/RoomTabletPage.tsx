@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/Button";
 import { CardCaptureStatus } from "@/components/ui/CardCaptureStatus";
 import {
   TabletMenuItem,
+  TabletRoom,
   TabletVisitRoom,
   VisitOrderStatus,
 } from "@/core/domain/entities/RoomTablet";
@@ -12,14 +13,14 @@ import { useCardCapture } from "@/core/presentation/hooks/useCardCapture";
 import { useRoomTablet } from "@/core/presentation/hooks/useRoomTablet";
 import { getKtvWarning } from "@/lib/ktv/session";
 
-type Screen = "idle" | "home" | "menu" | "time" | "history" | "done";
-type PayFor = { kind: "order" } | { kind: "time"; sessions: number };
+type Screen = "idle" | "start" | "home" | "menu" | "time" | "history" | "done";
+type PayFor = "start" | "order" | "time";
 
-const SETUP_KEY = "room-tablet-setup";
-const IDLE_MS = 60000;
+const SETUP_KEY = "room-tablet-room";
+const IDLE_MS = 90000;
 const DONE_MS = 5000;
 
-type TabletSetup = { deviceName: string; allowTyping: boolean };
+type TabletSetup = { roomId: string; roomNumber: string };
 
 const readSetup = (): TabletSetup | null => {
   try {
@@ -53,27 +54,25 @@ export function RoomTabletPage() {
     visit,
     menu,
     history,
+    rooms,
     isLoading,
     loadVisit,
     refreshVisit,
     loadMenu,
     loadHistory,
+    loadRooms,
+    startRoom,
     placeOrder,
     addTime,
     clear,
   } = useRoomTablet();
   const [setup, setSetup] = useState<TabletSetup | null>(() => readSetup());
-  const [setupForm, setSetupForm] = useState<TabletSetup>({
-    deviceName: "",
-    allowTyping: false,
-  });
   const [screen, setScreen] = useState<Screen>("idle");
   const [cardUid, setCardUid] = useState("");
   const [typedUid, setTypedUid] = useState("");
-  const [roomId, setRoomId] = useState("");
   const [cart, setCart] = useState<Record<string, number>>({});
   const [categoryId, setCategoryId] = useState("");
-  const [extraSessions, setExtraSessions] = useState(1);
+  const [sessions, setSessions] = useState(1);
   const [payFor, setPayFor] = useState<PayFor | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [doneMessage, setDoneMessage] = useState("");
@@ -81,8 +80,10 @@ export function RoomTabletPage() {
   const payKey = useRef<string | null>(null);
   const lastTouch = useRef(Date.now());
 
-  const room: TabletVisitRoom | undefined =
-    visit?.rooms.find((item) => item.sessionId === roomId) || visit?.rooms[0];
+  const tabletRoom: TabletRoom | undefined = rooms.find((room) => room.roomId === setup?.roomId);
+  const myRoom: TabletVisitRoom | undefined = visit?.rooms.find(
+    (room) => room.roomId === setup?.roomId
+  );
   const items = useMemo(() => menu.flatMap((category) => category.items), [menu]);
   const cartLines = useMemo(
     () =>
@@ -100,18 +101,36 @@ export function RoomTabletPage() {
     (sum, line) => sum + Number(line.item.price) * line.quantity,
     0
   );
+  const sessionPrice = Number(tabletRoom?.sessionPrice || myRoom?.sessionPrice || 0);
+  const sessionMinutes = tabletRoom?.sessionMinutes || myRoom?.sessionMinutes || 60;
   const discount = (visit?.guest.discountPercent || 0) / 100;
   const payAmount =
-    payFor?.kind === "time"
-      ? Number(room?.sessionPrice || 0) * payFor.sessions * (1 - discount)
-      : cartTotal * (1 - discount);
+    payFor === "time"
+      ? sessionPrice * sessions * (1 - discount)
+      : payFor === "start"
+        ? sessionPrice * sessions + cartTotal
+        : cartTotal * (1 - discount);
+
+  useEffect(() => {
+    if (!setup && !rooms.length) void loadRooms().catch(() => undefined);
+  }, [loadRooms, rooms.length, setup]);
+
+  useEffect(() => {
+    if (!setup) return;
+    const tick = () => {
+      if (document.visibilityState === "visible") void loadRooms().catch(() => undefined);
+    };
+    tick();
+    const timer = window.setInterval(tick, 15000);
+    return () => window.clearInterval(timer);
+  }, [loadRooms, setup]);
 
   const reset = useCallback(() => {
     clear();
     setCardUid("");
     setTypedUid("");
-    setRoomId("");
     setCart({});
+    setSessions(1);
     setPayFor(null);
     setError(null);
     setScreen("idle");
@@ -152,16 +171,23 @@ export function RoomTabletPage() {
     if (/does not belong|another card|not the wallet/i.test(message)) {
       return t("tablet.errors.wrongCard");
     }
+    if (/being prepared|not available|already in use/i.test(message)) {
+      return t("tablet.errors.roomTaken");
+    }
     return message || t("tablet.errors.generic");
   };
 
-  const startVisit = async (uid: string) => {
+  const openMyVisit = async (uid: string) => {
     touch();
     setError(null);
     try {
       const result = await loadVisit(uid);
+      if (!result.rooms.some((room) => room.roomId === setup?.roomId)) {
+        clear();
+        setError(t("tablet.errors.wrongCard"));
+        return;
+      }
       setCardUid(uid);
-      setRoomId(result.rooms[0]?.sessionId || "");
       setScreen("home");
     } catch (caught) {
       setError(explain(caught));
@@ -169,46 +195,71 @@ export function RoomTabletPage() {
   };
 
   const pay = async (uid: string) => {
-    if (!room || !payFor || !setup) return;
+    if (!payFor || !setup) return;
     touch();
     setError(null);
     payKey.current ||= newKey();
+    const deviceName = `${setup.roomNumber} tablet`;
     try {
-      const result =
-        payFor.kind === "order"
-          ? await placeOrder({
-              cardUid: uid,
-              sessionId: room.sessionId,
-              items: cartLines.map((line) => ({
-                variantId: line.item.variantId,
-                quantity: line.quantity,
-              })),
-              idempotencyKey: payKey.current,
-              deviceName: setup.deviceName,
-            })
-          : await addTime({
-              cardUid: uid,
-              sessionId: room.sessionId,
-              sessions: payFor.sessions,
-              idempotencyKey: payKey.current,
-              deviceName: setup.deviceName,
-            });
+      if (payFor === "start") {
+        const result = await startRoom({
+          cardUid: uid,
+          roomId: setup.roomId,
+          sessions,
+          items: cartLines.map((line) => ({
+            variantId: line.item.variantId,
+            quantity: line.quantity,
+          })),
+          idempotencyKey: payKey.current,
+          deviceName,
+        });
+        setDoneMessage(
+          t("tablet.started", {
+            count: sessions,
+            amount: money(result.charged),
+            balance: money(result.balanceAfter),
+          })
+        );
+        setCardUid(uid);
+        await loadVisit(uid);
+      } else if (payFor === "order" && myRoom) {
+        const result = await placeOrder({
+          cardUid: uid,
+          sessionId: myRoom.sessionId,
+          items: cartLines.map((line) => ({
+            variantId: line.item.variantId,
+            quantity: line.quantity,
+          })),
+          idempotencyKey: payKey.current,
+          deviceName,
+        });
+        setDoneMessage(
+          t("tablet.orderSent", {
+            number: result.orderNumber ?? "",
+            amount: money(result.charged),
+            balance: money(result.balanceAfter),
+          })
+        );
+      } else if (payFor === "time" && myRoom) {
+        const result = await addTime({
+          cardUid: uid,
+          sessionId: myRoom.sessionId,
+          sessions,
+          idempotencyKey: payKey.current,
+          deviceName,
+        });
+        setDoneMessage(
+          t("tablet.timeAdded", {
+            count: sessions,
+            amount: money(result.charged),
+            balance: money(result.balanceAfter),
+          })
+        );
+      }
       payKey.current = null;
-      setDoneMessage(
-        payFor.kind === "order"
-          ? t("tablet.orderSent", {
-              number: result.orderNumber ?? "",
-              amount: money(result.charged),
-              balance: money(result.balanceAfter),
-            })
-          : t("tablet.timeAdded", {
-              count: payFor.sessions,
-              amount: money(result.charged),
-              balance: money(result.balanceAfter),
-            })
-      );
-      if (payFor.kind === "order") setCart({});
+      setCart({});
       setPayFor(null);
+      void loadRooms().catch(() => undefined);
       setScreen("done");
     } catch (caught) {
       setError(explain(caught));
@@ -218,11 +269,14 @@ export function RoomTabletPage() {
   const onCard = (uid: string) => {
     if (!setup) return;
     if (payFor) void pay(uid);
-    else if (screen === "idle") void startVisit(uid);
+    else if (screen === "idle" && tabletRoom && !tabletRoom.available) void openMyVisit(uid);
   };
 
+  const listening =
+    Boolean(setup) &&
+    (Boolean(payFor) || (screen === "idle" && Boolean(tabletRoom) && !tabletRoom?.available));
   const { nfcSupported, nfcActive, nfcError, lastUid, startNfc } = useCardCapture({
-    enabled: Boolean(setup) && (screen === "idle" || Boolean(payFor)),
+    enabled: listening,
     onRead: onCard,
   });
 
@@ -232,11 +286,8 @@ export function RoomTabletPage() {
     setTypedUid("");
   };
 
-  const openMenu = async () => {
-    touch();
-    setError(null);
+  const ensureMenu = async () => {
     if (!menu.length) await loadMenu();
-    setScreen("menu");
   };
 
   const addToCart = (variantId: string, delta: number) => {
@@ -251,64 +302,50 @@ export function RoomTabletPage() {
   };
 
   const exitTablet = () => {
-    if (window.confirm(t("tablet.exitConfirm"))) {
-      try {
-        window.localStorage.removeItem(SETUP_KEY);
-      } catch {
-        // Storage can be blocked; signing out is what matters.
-      }
-      void logout();
+    if (!window.confirm(t("tablet.exitConfirm"))) return;
+    try {
+      window.localStorage.removeItem(SETUP_KEY);
+    } catch {
+      // Storage can be blocked; signing out is what matters.
     }
+    void logout();
+  };
+
+  const chooseRoom = (room: TabletRoom) => {
+    const value = { roomId: room.roomId, roomNumber: room.roomNumber };
+    try {
+      window.localStorage.setItem(SETUP_KEY, JSON.stringify(value));
+    } catch {
+      // Kept for this visit only when storage is blocked.
+    }
+    setSetup(value);
   };
 
   if (!setup) {
     return (
-      <main className="grid min-h-screen place-items-center bg-[#080808] p-6 text-white">
-        <form
-          className="w-full max-w-md space-y-4 rounded-xl border border-slate-700 bg-slate-950 p-6"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (!setupForm.deviceName.trim()) return;
-            const value = { ...setupForm, deviceName: setupForm.deviceName.trim() };
-            try {
-              window.localStorage.setItem(SETUP_KEY, JSON.stringify(value));
-            } catch {
-              // Kept for this visit only when storage is blocked.
-            }
-            setSetup(value);
-          }}
-        >
+      <main className="min-h-screen bg-[#080808] p-6 text-white">
+        <div className="mx-auto max-w-3xl space-y-4">
           <h1 className="text-2xl font-bold">{t("tablet.setupTitle")}</h1>
-          <p className="text-sm text-slate-400">{t("tablet.setupDescription")}</p>
-          <label className="block text-sm">
-            {t("tablet.deviceName")}
-            <input
-              value={setupForm.deviceName}
-              onChange={(event) =>
-                setSetupForm((current) => ({ ...current, deviceName: event.target.value }))
-              }
-              placeholder={t("tablet.deviceNamePlaceholder")}
-              className="mt-1 w-full rounded border border-slate-700 bg-slate-900 px-3 py-3"
-              required
-            />
-          </label>
-          <label className="flex items-center gap-2 text-sm text-slate-300">
-            <input
-              type="checkbox"
-              checked={setupForm.allowTyping}
-              onChange={(event) =>
-                setSetupForm((current) => ({ ...current, allowTyping: event.target.checked }))
-              }
-            />
-            {t("tablet.allowTyping")}
-          </label>
-          <Button fullWidth type="submit">
-            {t("tablet.startTablet")}
-          </Button>
-        </form>
+          <p className="text-slate-400">{t("tablet.setupDescription")}</p>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+            {rooms.map((room) => (
+              <button
+                key={room.roomId}
+                type="button"
+                className="rounded-lg border border-slate-700 bg-slate-900 p-4 text-left hover:border-teal-500"
+                onClick={() => chooseRoom(room)}
+              >
+                <p className="text-xl font-bold">{room.roomNumber}</p>
+                <p className="text-sm text-slate-400">{room.name}</p>
+              </button>
+            ))}
+          </div>
+        </div>
       </main>
     );
   }
+
+  const allowTyping = !nfcSupported;
 
   const header = (
     <header className="flex items-center justify-between gap-3 border-b border-white/10 px-6 py-4">
@@ -316,10 +353,17 @@ export function RoomTabletPage() {
         type="button"
         className="text-left"
         onDoubleClick={exitTablet}
-        aria-label={t("tablet.deviceLabel", { name: setup.deviceName })}
+        aria-label={t("tablet.deviceLabel", { name: setup.roomNumber })}
       >
-        <p className="text-lg font-bold">{t("tablet.brand")}</p>
-        <p className="text-xs text-slate-500">{setup.deviceName}</p>
+        <p className="text-2xl font-bold">
+          {setup.roomNumber}
+          {tabletRoom?.name ? (
+            <span className="ml-2 text-base font-normal text-slate-400">{tabletRoom.name}</span>
+          ) : null}
+        </p>
+        {tabletRoom?.treatment ? (
+          <p className="text-xs text-slate-500">{tabletRoom.treatment}</p>
+        ) : null}
       </button>
       {visit ? (
         <div className="text-right">
@@ -345,7 +389,7 @@ export function RoomTabletPage() {
   );
 
   const tapPanel = (title: string) => (
-    <div className="mx-auto mt-10 w-full max-w-md space-y-5 text-center">
+    <div className="mx-auto mt-8 w-full max-w-md space-y-5 text-center">
       <div className="mx-auto grid h-28 w-28 place-items-center rounded-full border-4 border-teal-500 text-4xl">
         ((·))
       </div>
@@ -357,7 +401,7 @@ export function RoomTabletPage() {
         lastUid={lastUid}
         onEnableNfc={() => void startNfc()}
       />
-      {setup.allowTyping ? (
+      {allowTyping ? (
         <form className="flex gap-2" onSubmit={submitTyped}>
           <input
             value={typedUid}
@@ -372,6 +416,111 @@ export function RoomTabletPage() {
       ) : null}
     </div>
   );
+
+  const sessionStepper = (
+    <div className="space-y-3 text-center">
+      <div className="flex items-center justify-center gap-4">
+        <button
+          type="button"
+          aria-label={t("tablet.less")}
+          className="h-14 w-14 rounded-full bg-slate-800 text-2xl disabled:opacity-40"
+          disabled={sessions <= 1}
+          onClick={() => setSessions((count) => Math.max(1, count - 1))}
+        >
+          −
+        </button>
+        <span className="w-16 text-4xl font-bold">{sessions}</span>
+        <button
+          type="button"
+          aria-label={t("tablet.more")}
+          className="h-14 w-14 rounded-full bg-slate-800 text-2xl"
+          onClick={() => setSessions((count) => count + 1)}
+        >
+          +
+        </button>
+      </div>
+      <p className="text-slate-300">
+        {t("tablet.sessionsOf", { count: sessions, minutes: sessions * sessionMinutes })}
+      </p>
+      {sessionPrice ? (
+        <p className="text-xl font-bold text-teal-300">{money(sessionPrice * sessions)}</p>
+      ) : null}
+    </div>
+  );
+
+  const menuGrid = (
+    <div className="min-h-0 space-y-3 overflow-y-auto">
+      <div className="flex flex-wrap gap-2">
+        {menu.map((category) => (
+          <button
+            key={category.categoryId}
+            type="button"
+            className={`rounded-full px-4 py-2 text-sm font-semibold ${
+              (categoryId || menu[0]?.categoryId) === category.categoryId
+                ? "bg-teal-600"
+                : "bg-slate-800"
+            }`}
+            onClick={() => setCategoryId(category.categoryId)}
+          >
+            {category.name}
+          </button>
+        ))}
+      </div>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+        {(menu.find((c) => c.categoryId === (categoryId || menu[0]?.categoryId))?.items || []).map(
+          (item) => (
+            <button
+              key={item.variantId}
+              type="button"
+              className="overflow-hidden rounded-lg border border-slate-800 bg-slate-900 text-left"
+              onClick={() => addToCart(item.variantId, 1)}
+            >
+              {item.imageUrl ? (
+                <img src={item.imageUrl} alt="" className="h-24 w-full object-cover" />
+              ) : (
+                <span className="flex h-24 items-center justify-center bg-slate-800 text-2xl text-slate-500">
+                  {item.name.slice(0, 1)}
+                </span>
+              )}
+              <span className="block p-3">
+                <span className="block font-semibold">{item.name}</span>
+                <span className="text-teal-300">{money(item.price)}</span>
+                {cart[item.variantId] ? (
+                  <span className="float-right rounded bg-teal-700 px-2 text-sm">
+                    × {cart[item.variantId]}
+                  </span>
+                ) : null}
+              </span>
+            </button>
+          )
+        )}
+      </div>
+    </div>
+  );
+
+  const cartList = cartLines.map((line) => (
+    <div key={line.item.variantId} className="flex items-center gap-2 text-sm">
+      <span className="min-w-0 flex-1 truncate">{line.item.name}</span>
+      <button
+        type="button"
+        aria-label={t("tablet.less")}
+        className="h-8 w-8 rounded bg-slate-800"
+        onClick={() => addToCart(line.item.variantId, -1)}
+      >
+        −
+      </button>
+      <span className="w-6 text-center">{line.quantity}</span>
+      <button
+        type="button"
+        aria-label={t("tablet.more")}
+        className="h-8 w-8 rounded bg-slate-800"
+        onClick={() => addToCart(line.item.variantId, 1)}
+      >
+        +
+      </button>
+      <span className="w-16 text-right">{money(Number(line.item.price) * line.quantity)}</span>
+    </div>
+  ));
 
   return (
     <main
@@ -399,164 +548,143 @@ export function RoomTabletPage() {
             </div>
           </>
         ) : screen === "idle" ? (
-          tapPanel(t("tablet.tapToStart"))
+          !tabletRoom ? null : tabletRoom.available ? (
+            <div className="mx-auto mt-10 max-w-md space-y-6 text-center">
+              <p className="text-sm uppercase tracking-wide text-emerald-300">
+                {t("tablet.roomFree")}
+              </p>
+              <p className="text-3xl font-bold">{t("tablet.welcome")}</p>
+              {tabletRoom.sessionPrice ? (
+                <p className="text-slate-300">
+                  {t("tablet.pricePerSession", {
+                    minutes: tabletRoom.sessionMinutes,
+                    amount: money(tabletRoom.sessionPrice),
+                  })}
+                </p>
+              ) : null}
+              <Button
+                fullWidth
+                onClick={() => {
+                  touch();
+                  setError(null);
+                  setSessions(1);
+                  setCart({});
+                  void ensureMenu();
+                  setScreen("start");
+                }}
+              >
+                {t("tablet.startTreatment")}
+              </Button>
+            </div>
+          ) : tabletRoom.status === "IN_USE" ? (
+            <>
+              {tabletRoom.endsAt ? (
+                <p className="text-center text-xl font-semibold text-slate-300">
+                  {getKtvWarning(tabletRoom.endsAt, nowMs).level === "EXPIRED"
+                    ? t("tablet.timeUp")
+                    : t("tablet.minutesLeft", {
+                        count: getKtvWarning(tabletRoom.endsAt, nowMs).remainingMinutes,
+                      })}
+                </p>
+              ) : null}
+              {tapPanel(t("tablet.tapToContinue"))}
+            </>
+          ) : (
+            <p className="mt-16 text-center text-2xl text-slate-300">
+              {t("tablet.roomPreparing")}
+            </p>
+          )
+        ) : screen === "start" ? (
+          <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
+            <div className="space-y-6">
+              <div>
+                <h2 className="mb-3 text-xl font-bold">{t("tablet.howLong")}</h2>
+                {sessionStepper}
+              </div>
+              <div>
+                <h2 className="mb-3 text-xl font-bold">{t("tablet.addFood")}</h2>
+                {menuGrid}
+              </div>
+            </div>
+            <aside className="flex flex-col gap-3 rounded-lg border border-slate-800 p-4">
+              <p className="font-bold">{t("tablet.review")}</p>
+              <p className="flex justify-between text-sm">
+                <span>
+                  {t("tablet.sessionsOf", { count: sessions, minutes: sessions * sessionMinutes })}
+                </span>
+                <span>{money(sessionPrice * sessions)}</span>
+              </p>
+              {cartList}
+              <p className="mt-auto flex justify-between border-t border-slate-800 pt-2 font-bold">
+                <span>{t("tablet.total")}</span>
+                <span>{money(sessionPrice * sessions + cartTotal)}</span>
+              </p>
+              <p className="text-xs text-slate-500">{t("tablet.discountNote")}</p>
+              <Button onClick={() => setPayFor("start")}>
+                {t("tablet.payAndStart", { amount: money(sessionPrice * sessions + cartTotal) })}
+              </Button>
+              <Button variant="secondary" onClick={reset}>
+                {t("tablet.cancel")}
+              </Button>
+            </aside>
+          </div>
         ) : screen === "done" ? (
           <div className="mx-auto mt-16 max-w-md space-y-4 text-center">
             <p className="text-6xl text-emerald-400">✓</p>
             <p className="text-2xl font-bold">{doneMessage}</p>
             <Button onClick={() => setScreen("home")}>{t("tablet.backToVisit")}</Button>
           </div>
-        ) : !visit ? null : screen === "home" ? (
+        ) : !visit || !myRoom ? null : screen === "home" ? (
           <div className="mx-auto w-full max-w-3xl space-y-4">
-            {visit.rooms.length === 0 ? (
-              <p className="mt-10 text-center text-lg text-slate-300">{t("tablet.noRoom")}</p>
-            ) : (
-              <>
-                {visit.rooms.length > 1 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {visit.rooms.map((item) => (
-                      <button
-                        key={item.sessionId}
-                        type="button"
-                        className={`rounded-full px-4 py-2 font-semibold ${
-                          item.sessionId === room?.sessionId ? "bg-teal-600" : "bg-slate-800"
-                        }`}
-                        onClick={() => setRoomId(item.sessionId)}
-                      >
-                        {item.roomNumber}
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-                {room ? (
-                  <RoomCard room={room} nowMs={nowMs} />
-                ) : null}
-                {room && !room.prepaid ? (
-                  <p className="rounded border border-amber-500/60 bg-amber-950/40 p-3 text-sm text-amber-100">
-                    {t("tablet.orderAtReception")}
-                  </p>
-                ) : null}
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                  <Button disabled={!room?.prepaid} onClick={() => void openMenu()}>
-                    {t("tablet.orderFood")}
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    disabled={!room?.prepaid}
-                    onClick={() => {
-                      setExtraSessions(1);
-                      setScreen("time");
-                    }}
-                  >
-                    {t("tablet.addTime")}
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    onClick={() => {
-                      void loadHistory(cardUid);
-                      setScreen("history");
-                    }}
-                  >
-                    {t("tablet.cardHistory")}
-                  </Button>
-                </div>
-              </>
-            )}
+            <RoomCard room={myRoom} nowMs={nowMs} />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <Button
+                onClick={() => {
+                  setCart({});
+                  void ensureMenu();
+                  setScreen("menu");
+                }}
+              >
+                {t("tablet.orderFood")}
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setSessions(1);
+                  setScreen("time");
+                }}
+              >
+                {t("tablet.addTime")}
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  void loadHistory(cardUid);
+                  setScreen("history");
+                }}
+              >
+                {t("tablet.cardHistory")}
+              </Button>
+            </div>
             <Button fullWidth variant="secondary" onClick={reset}>
               {t("tablet.done")}
             </Button>
           </div>
         ) : screen === "menu" ? (
           <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
-            <div className="min-h-0 space-y-3 overflow-y-auto">
-              <div className="flex flex-wrap gap-2">
-                {menu.map((category) => (
-                  <button
-                    key={category.categoryId}
-                    type="button"
-                    className={`rounded-full px-4 py-2 text-sm font-semibold ${
-                      (categoryId || menu[0]?.categoryId) === category.categoryId
-                        ? "bg-teal-600"
-                        : "bg-slate-800"
-                    }`}
-                    onClick={() => setCategoryId(category.categoryId)}
-                  >
-                    {category.name}
-                  </button>
-                ))}
-              </div>
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-                {(menu.find((c) => c.categoryId === (categoryId || menu[0]?.categoryId))?.items || []).map(
-                  (item) => (
-                    <button
-                      key={item.variantId}
-                      type="button"
-                      className="overflow-hidden rounded-lg border border-slate-800 bg-slate-900 text-left"
-                      onClick={() => addToCart(item.variantId, 1)}
-                    >
-                      {item.imageUrl ? (
-                        <img src={item.imageUrl} alt="" className="h-24 w-full object-cover" />
-                      ) : (
-                        <span className="flex h-24 items-center justify-center bg-slate-800 text-2xl text-slate-500">
-                          {item.name.slice(0, 1)}
-                        </span>
-                      )}
-                      <span className="block p-3">
-                        <span className="block font-semibold">{item.name}</span>
-                        <span className="text-teal-300">{money(item.price)}</span>
-                        {cart[item.variantId] ? (
-                          <span className="float-right rounded bg-teal-700 px-2 text-sm">
-                            × {cart[item.variantId]}
-                          </span>
-                        ) : null}
-                      </span>
-                    </button>
-                  )
-                )}
-              </div>
-            </div>
+            {menuGrid}
             <aside className="flex flex-col gap-3 rounded-lg border border-slate-800 p-4">
               <p className="font-bold">{t("tablet.yourOrder")}</p>
               {cartLines.length === 0 ? (
                 <p className="text-sm text-slate-500">{t("tablet.cartEmpty")}</p>
               ) : (
-                cartLines.map((line) => (
-                  <div key={line.item.variantId} className="flex items-center gap-2 text-sm">
-                    <span className="min-w-0 flex-1 truncate">{line.item.name}</span>
-                    <button
-                      type="button"
-                      aria-label={t("tablet.less")}
-                      className="h-8 w-8 rounded bg-slate-800"
-                      onClick={() => addToCart(line.item.variantId, -1)}
-                    >
-                      −
-                    </button>
-                    <span className="w-6 text-center">{line.quantity}</span>
-                    <button
-                      type="button"
-                      aria-label={t("tablet.more")}
-                      className="h-8 w-8 rounded bg-slate-800"
-                      onClick={() => addToCart(line.item.variantId, 1)}
-                    >
-                      +
-                    </button>
-                    <span className="w-16 text-right">
-                      {money(Number(line.item.price) * line.quantity)}
-                    </span>
-                  </div>
-                ))
+                cartList
               )}
               <p className="mt-auto flex justify-between border-t border-slate-800 pt-2 font-bold">
                 <span>{t("tablet.total")}</span>
                 <span>{money(cartTotal)}</span>
               </p>
-              <Button
-                disabled={!cartLines.length}
-                onClick={() => {
-                  setError(null);
-                  setPayFor({ kind: "order" });
-                }}
-              >
+              <Button disabled={!cartLines.length} onClick={() => setPayFor("order")}>
                 {t("tablet.payAndOrder", { amount: money(cartTotal * (1 - discount)) })}
               </Button>
               <Button variant="secondary" onClick={() => setScreen("home")}>
@@ -564,47 +692,15 @@ export function RoomTabletPage() {
               </Button>
             </aside>
           </div>
-        ) : screen === "time" && room ? (
+        ) : screen === "time" ? (
           <div className="mx-auto mt-6 w-full max-w-md space-y-5 text-center">
-            <h2 className="text-2xl font-bold">{t("tablet.addTimeTitle", { room: room.roomNumber })}</h2>
-            <div className="flex items-center justify-center gap-4">
-              <button
-                type="button"
-                aria-label={t("tablet.less")}
-                className="h-14 w-14 rounded-full bg-slate-800 text-2xl disabled:opacity-40"
-                disabled={extraSessions <= 1}
-                onClick={() => setExtraSessions((count) => Math.max(1, count - 1))}
-              >
-                −
-              </button>
-              <span className="w-16 text-4xl font-bold">{extraSessions}</span>
-              <button
-                type="button"
-                aria-label={t("tablet.more")}
-                className="h-14 w-14 rounded-full bg-slate-800 text-2xl"
-                onClick={() => setExtraSessions((count) => count + 1)}
-              >
-                +
-              </button>
-            </div>
-            <p className="text-slate-300">
-              {t("tablet.sessionsOf", {
-                count: extraSessions,
-                minutes: extraSessions * room.sessionMinutes,
-              })}
-            </p>
-            {room.sessionPrice ? (
-              <p className="text-xl font-bold text-teal-300">
-                {money(Number(room.sessionPrice) * extraSessions * (1 - discount))}
-              </p>
-            ) : null}
+            <h2 className="text-2xl font-bold">{t("tablet.addTimeTitle", { room: myRoom.roomNumber })}</h2>
+            {sessionStepper}
             <div className="grid grid-cols-2 gap-3">
               <Button variant="secondary" onClick={() => setScreen("home")}>
                 {t("tablet.back")}
               </Button>
-              <Button onClick={() => setPayFor({ kind: "time", sessions: extraSessions })}>
-                {t("tablet.payTime")}
-              </Button>
+              <Button onClick={() => setPayFor("time")}>{t("tablet.payTime")}</Button>
             </div>
           </div>
         ) : screen === "history" ? (
@@ -656,27 +752,19 @@ function RoomCard({ room, nowMs }: { room: TabletVisitRoom; nowMs: number }) {
     ends && ends > started
       ? Math.min(100, Math.max(0, ((nowMs - started) / (ends - started)) * 100))
       : 0;
+  const itemOrders = room.orders.filter((order) => order.kind === "ITEMS");
   return (
     <div className="space-y-4 rounded-xl border border-slate-800 bg-slate-950 p-5">
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-xs uppercase tracking-wide text-teal-300">{t("tablet.spa")}</p>
-          <p className="text-2xl font-bold">
-            {room.roomNumber}
-            {room.roomName ? (
-              <span className="ml-2 text-base font-normal text-slate-400">{room.roomName}</span>
-            ) : null}
-          </p>
-          <p className="text-sm text-slate-400">
-            {t("tablet.startedAt", {
-              time: new Date(room.openedAt).toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              }),
-            })}
-            {room.plannedMinutes ? ` · ${t("tablet.booked", { minutes: room.plannedMinutes })}` : ""}
-          </p>
-        </div>
+        <p className="text-sm text-slate-400">
+          {t("tablet.startedAt", {
+            time: new Date(room.openedAt).toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            }),
+          })}
+          {room.plannedMinutes ? ` · ${t("tablet.booked", { minutes: room.plannedMinutes })}` : ""}
+        </p>
         {room.endsAt ? (
           <p
             className={`text-right text-xl font-bold ${
@@ -700,22 +788,22 @@ function RoomCard({ room, nowMs }: { room: TabletVisitRoom; nowMs: number }) {
       ) : null}
       <div className="space-y-2">
         <p className="text-sm font-semibold text-slate-300">{t("tablet.myOrders")}</p>
-        {room.orders.filter((order) => order.kind === "ITEMS").length === 0 ? (
+        {itemOrders.length === 0 ? (
           <p className="text-sm text-slate-500">{t("tablet.noOrders")}</p>
         ) : (
-          room.orders
-            .filter((order) => order.kind === "ITEMS")
-            .map((order) => (
-              <div key={order.id} className="flex items-center justify-between gap-3 text-sm">
-                <span className="min-w-0 truncate">
-                  #{order.orderNumber}{" "}
-                  {order.items.map((item) => `${item.name} ×${item.quantity}`).join(", ")}
-                </span>
-                <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${STATUS_TONE[order.status]}`}>
-                  {t(`tablet.status.${order.status}`)}
-                </span>
-              </div>
-            ))
+          itemOrders.map((order) => (
+            <div key={order.id} className="flex items-center justify-between gap-3 text-sm">
+              <span className="min-w-0 truncate">
+                #{order.orderNumber}{" "}
+                {order.items.map((item) => `${item.name} ×${item.quantity}`).join(", ")}
+              </span>
+              <span
+                className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${STATUS_TONE[order.status]}`}
+              >
+                {t(`tablet.status.${order.status}`)}
+              </span>
+            </div>
+          ))
         )}
       </div>
       <p className="flex justify-between border-t border-slate-800 pt-2 text-sm">

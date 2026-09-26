@@ -1310,15 +1310,10 @@
   },
   "tablet": {
     "brand": "Guest menu",
-    "setupTitle": "Set up this tablet",
-    "setupDescription": "Name this tablet so staff know where orders come from. Guests order and pay with their own card.",
-    "deviceName": "Tablet name",
-    "deviceNamePlaceholder": "e.g. Spa lounge tablet 1",
-    "allowTyping": "Allow typing card numbers (testing only)",
-    "startTablet": "Start tablet mode",
+    "setupTitle": "Which room is this tablet in?",
+    "setupDescription": "Pick this tablet's room once. Guests will then take the room, order and pay here with their card.",
     "deviceLabel": "{{name}} — double-tap to exit tablet mode",
     "exitConfirm": "Exit tablet mode and sign out? A manager will need to sign in again.",
-    "tapToStart": "Tap your guest card to begin",
     "tapToPay": "Tap your card to pay {{amount}}",
     "discountNote": "Your member discount is included. The final amount is confirmed when you tap.",
     "typeCard": "Card number",
@@ -1376,8 +1371,20 @@
     "errors": {
       "balance": "Not enough balance. Please top up at reception.",
       "wrongCard": "This card isn't registered to this room.",
-      "generic": "Something went wrong. Please try again or ask staff."
-    }
+      "generic": "Something went wrong. Please try again or ask staff.",
+      "roomTaken": "This room is already taken or being prepared."
+    },
+    "roomFree": "Available",
+    "welcome": "Welcome — this room is free",
+    "pricePerSession": "{{minutes}} min per session · {{amount}}",
+    "startTreatment": "Start a treatment",
+    "tapToContinue": "This room is in use. Tap your card to order or add time.",
+    "roomPreparing": "This room is being prepared. Please ask staff.",
+    "howLong": "How long would you like?",
+    "addFood": "Anything to eat or drink? (optional)",
+    "review": "Your booking",
+    "payAndStart": "Pay & start · {{amount}}",
+    "started": "Enjoy! {{count}} sessions started · Charged {{amount}} · Balance {{balance}}"
   },
   "kds": {
     "title": "Kitchen display",
@@ -1401,6 +1408,7 @@
     "delivered": "Delivered",
     "more": "+{{count}} more orders",
     "printHere": "Print tablet orders here",
-    "printFailed": "Could not print the ticket."
+    "printFailed": "Could not print the ticket.",
+    "started": "Started from tablet"
   }
 }

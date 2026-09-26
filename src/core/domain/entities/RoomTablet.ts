@@ -84,3 +84,21 @@ export interface RoomOrderView {
   printClaimedAt: string | null;
   items: { name: string; quantity: number; status: string }[];
 }
+
+export interface TabletRoom {
+  roomId: string;
+  roomNumber: string;
+  name: string | null;
+  treatment: string | null;
+  sessionMinutes: number;
+  sessionPrice: string | null;
+  status: "AVAILABLE" | "IN_USE" | "OCCUPIED" | "CLEANING" | "OUT_OF_SERVICE";
+  available: boolean;
+  endsAt: string | null;
+}
+
+export interface TabletStartResult {
+  sessionId: string;
+  charged: string;
+  balanceAfter: string;
+}

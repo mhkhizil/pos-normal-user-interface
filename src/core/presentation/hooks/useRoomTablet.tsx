@@ -1,8 +1,13 @@
 import { useCallback, useState } from "react";
-import { TabletExtendDTO, TabletOrderDTO } from "../../application/dtos/RoomTabletDTO";
+import {
+  TabletExtendDTO,
+  TabletOrderDTO,
+  TabletStartDTO,
+} from "../../application/dtos/RoomTabletDTO";
 import {
   TabletHistoryEntry,
   TabletMenuCategory,
+  TabletRoom,
   TabletVisit,
 } from "../../domain/entities/RoomTablet";
 import { IRoomTabletService } from "../../domain/services/IRoomTabletService";
@@ -13,6 +18,7 @@ export function useRoomTablet() {
   const [visit, setVisit] = useState<TabletVisit | null>(null);
   const [menu, setMenu] = useState<TabletMenuCategory[]>([]);
   const [history, setHistory] = useState<TabletHistoryEntry[]>([]);
+  const [rooms, setRooms] = useState<TabletRoom[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   const run = useCallback(async <T,>(operation: () => Promise<T>): Promise<T> => {
@@ -63,6 +69,17 @@ export function useRoomTablet() {
     [run, service]
   );
 
+  const loadRooms = useCallback(async () => {
+    const result = await service.getRooms();
+    setRooms(result);
+    return result;
+  }, [service]);
+
+  const startRoom = useCallback(
+    (payload: TabletStartDTO) => run(() => service.startRoom(payload)),
+    [run, service]
+  );
+
   const placeOrder = useCallback(
     (payload: TabletOrderDTO) => run(() => service.placeOrder(payload)),
     [run, service]
@@ -82,7 +99,10 @@ export function useRoomTablet() {
     visit,
     menu,
     history,
+    rooms,
     isLoading,
+    loadRooms,
+    startRoom,
     loadVisit,
     refreshVisit,
     loadMenu,

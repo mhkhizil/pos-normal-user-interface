@@ -258,6 +258,8 @@ export const API_ENDPOINTS = {
     MENU: "/api/v1/tablet/menu",
     ORDERS: "/api/v1/tablet/orders",
     EXTEND: "/api/v1/tablet/extend",
+    ROOMS: "/api/v1/tablet/rooms",
+    START: "/api/v1/tablet/start",
   },
 
   ROOM_ORDERS: {

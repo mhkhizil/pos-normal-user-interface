@@ -1,9 +1,11 @@
-import { TabletExtendDTO, TabletOrderDTO } from "../dtos/RoomTabletDTO";
+import { TabletExtendDTO, TabletOrderDTO, TabletStartDTO } from "../dtos/RoomTabletDTO";
 import {
   RoomOrderView,
   TabletChargeResult,
   TabletHistoryEntry,
   TabletMenuCategory,
+  TabletRoom,
+  TabletStartResult,
   TabletVisit,
 } from "../../domain/entities/RoomTablet";
 import { IRoomTabletRepository } from "../../domain/repositories/IRoomTabletRepository";
@@ -28,6 +30,17 @@ export class RoomTabletService implements IRoomTabletService {
 
   getMenu(): Promise<TabletMenuCategory[]> {
     return this.repository.getMenu();
+  }
+
+  getRooms(): Promise<TabletRoom[]> {
+    return this.repository.getRooms();
+  }
+
+  startRoom(payload: TabletStartDTO): Promise<TabletStartResult> {
+    requireValue(payload.cardUid, "Card");
+    requireValue(payload.roomId, "Room");
+    if (payload.sessions < 1) throw new Error("Choose at least one session");
+    return this.repository.startRoom({ ...payload, cardUid: payload.cardUid.trim() });
   }
 
   placeOrder(payload: TabletOrderDTO): Promise<TabletChargeResult> {

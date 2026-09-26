@@ -1,9 +1,15 @@
-import { TabletExtendDTO, TabletOrderDTO } from "../../application/dtos/RoomTabletDTO";
+import {
+  TabletExtendDTO,
+  TabletOrderDTO,
+  TabletStartDTO,
+} from "../../application/dtos/RoomTabletDTO";
 import {
   RoomOrderView,
   TabletChargeResult,
   TabletHistoryEntry,
   TabletMenuCategory,
+  TabletRoom,
+  TabletStartResult,
   TabletVisit,
   TabletVisitOrder,
   TabletVisitRoom,
@@ -158,6 +164,35 @@ export class ApiRoomTabletRepository implements IRoomTabletRepository {
         }),
       };
     });
+  }
+
+  async getRooms(): Promise<TabletRoom[]> {
+    const response = await this.httpClient.get<unknown>(API_ENDPOINTS.TABLET.ROOMS);
+    return asList(unwrap(response)).map((value) => {
+      const item = asRecord(value);
+      return {
+        roomId: text(item.roomId),
+        roomNumber: text(item.roomNumber),
+        name: orNull(item.name),
+        treatment: orNull(item.treatment),
+        sessionMinutes: Number(item.sessionMinutes || 60),
+        sessionPrice: orNull(item.sessionPrice),
+        status: text(item.status, "AVAILABLE") as TabletRoom["status"],
+        available: Boolean(item.available),
+        endsAt: orNull(item.endsAt),
+      };
+    });
+  }
+
+  async startRoom(payload: TabletStartDTO): Promise<TabletStartResult> {
+    const item = asRecord(
+      unwrap(await this.httpClient.post<unknown>(API_ENDPOINTS.TABLET.START, payload))
+    );
+    return {
+      sessionId: text(item.sessionId),
+      charged: money(item.charged),
+      balanceAfter: money(item.balanceAfter),
+    };
   }
 
   async placeOrder(payload: TabletOrderDTO): Promise<TabletChargeResult> {

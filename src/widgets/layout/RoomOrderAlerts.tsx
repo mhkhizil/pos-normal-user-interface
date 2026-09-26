@@ -83,7 +83,10 @@ export function RoomOrderAlerts({
           </p>
           <ul className="mt-1">
             {order.kind === "SESSIONS" ? (
-              <li>{t("roomOrders.timeAdded")}</li>
+              <li>
+                {order.orderNumber === 1 ? t("roomOrders.started") : t("roomOrders.timeAdded")}
+                {order.items[0] ? ` · ${order.items[0].name} × ${order.items[0].quantity}` : ""}
+              </li>
             ) : (
               order.items.map((item, index) => (
                 <li key={`${order.id}-${index}`}>
