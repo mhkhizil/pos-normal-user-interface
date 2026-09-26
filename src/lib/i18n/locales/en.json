@@ -1188,7 +1188,6 @@
     },
     "steps": {
       "rooms": "Select room",
-      "card": "Guest card",
       "sessions": "Select session",
       "menu": "Add services",
       "pay": "Close and pay"
@@ -1198,15 +1197,11 @@
       "available": "Available",
       "active": "In treatment"
     },
-    "cardTitle": "Tap the guest card",
-    "cardDescription": "Tap or swipe the card, or enter its UID.",
     "cardUid": "Guest card UID",
     "checkCard": "Check card",
     "cardAccepted": "Card accepted.",
-    "tier": "{{tier}} · {{percent}}% member discount",
     "balance": "Balance: {{amount}}",
     "topUpCard": "Top up card",
-    "selectRoom": "Select room",
     "sessionOption": "Started {{time}} · {{count}} guests",
     "newSession": "New treatment in {{room}}",
     "treatmentLength": "Treatment length",
@@ -1216,7 +1211,6 @@
     "servicesCharge": "Services",
     "runningTotal": "Running total",
     "noLines": "No services added yet.",
-    "itemAdded": "Service added to the bill.",
     "pause": "Pause",
     "resume": "Resume",
     "goToPay": "Close and pay",
@@ -1235,9 +1229,6 @@
     "change": "Change: {{amount}}",
     "nextGuest": "Next guest",
     "insufficientTitle": "Card balance too low",
-    "insufficientDescription": "Remove the last service, top up the card, or pay the rest in cash.",
-    "removeLastItem": "Remove last service",
-    "payRestInCash": "Pay rest in cash",
     "errors": {
       "cardLookup": "Unable to look up this card.",
       "walletUnavailable": "This guest wallet cannot be used.",
@@ -1248,7 +1239,9 @@
       "paymentUnavailable": "Guest card payment is not set up for this branch.",
       "cashUnavailable": "Cash is not set up as a payment method.",
       "pay": "Unable to close and pay this treatment.",
-      "editLine": "Unable to change this item on the bill."
+      "editLine": "Unable to change this item on the bill.",
+      "balanceShort": "The card cannot cover this bill. Top up or pay part in cash.",
+      "pendingItems": "Add or clear the new items before paying."
     },
     "item": "Item",
     "tabBalance": "Tab: {{amount}}",
@@ -1263,14 +1256,25 @@
     "startedShort": "Since {{time}}",
     "minutesOfBooked": "{{count}}/{{booked}} min",
     "minutesLeft": "{{count}} min left",
-    "continue": "Continue",
-    "tapCard": "Tap guest card",
-    "cardNeededToAdd": "Tap the guest card to add services to this bill.",
-    "cardFor": {
-      "open": "Tap the guest card to start a treatment in {{room}}.",
-      "menu": "Tap the guest card to add services.",
-      "pay": "Tap the guest card to pay."
-    }
+    "tapPrompt": "Tap or swipe the guest card, or type its UID.",
+    "noCardYet": "No card tapped yet — it is asked for when adding, starting or paying.",
+    "changeCard": "Change",
+    "newItems": "New (not added yet)",
+    "decreaseNew": "Decrease new item",
+    "increaseNew": "Increase new item",
+    "removeNew": "Remove new item",
+    "clear": "Clear",
+    "addToBill": "Add to bill · {{count}} · {{amount}}",
+    "itemsAdded": "{{count}} items added to the bill.",
+    "treatmentStarted": "Treatment started.",
+    "confirmAddTitle": "Confirm with the guest card",
+    "confirmStartTitle": "Start treatment in {{room}}",
+    "confirmPayTitle": "Tap the card to pay",
+    "newItemsTotal": "New items",
+    "startSummary": "{{room}} · {{minutes}} min · {{count}} guests",
+    "balanceVsTotal": "Card balance {{balance}} is below the new estimated total {{total}}.",
+    "addAnyway": "Add anyway, pay the rest in cash",
+    "backToBoard": "Room board"
   },
   "statusBadge": {
     "verified": "Verified",

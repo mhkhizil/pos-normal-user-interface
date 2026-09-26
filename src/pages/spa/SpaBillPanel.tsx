@@ -5,6 +5,7 @@ import { GuestCard, GuestWallet } from "@/core/domain/entities/GuestWallet";
 import { SpaRoom, SpaSession, SpaSessionQuote } from "@/core/domain/entities/Spa";
 import { getKtvWarning } from "@/lib/ktv/session";
 import { estimateCardCharge } from "@/lib/spa/payment";
+import { PendingItem, pendingTotal } from "@/lib/spa/pending";
 
 const money = (value: string | number | undefined) =>
   Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 2 });
@@ -24,7 +25,13 @@ export function SpaBillPanel({
   primaryLabel,
   onTogglePause,
   onChangeQuantity,
+  onAddAnother,
   onRemoveLine,
+  pending,
+  onPendingChange,
+  onClearPending,
+  onCommitPending,
+  onChangeCard,
 }: {
   room: SpaRoom | null;
   session: SpaSession;
@@ -40,7 +47,13 @@ export function SpaBillPanel({
   primaryLabel: string;
   onTogglePause: () => void;
   onChangeQuantity: (line: SalesOrderLine, delta: number) => void;
+  onAddAnother: (line: SalesOrderLine) => void;
   onRemoveLine: (line: SalesOrderLine) => void;
+  pending: PendingItem[];
+  onPendingChange: (variantId: string, delta: number) => void;
+  onClearPending: () => void;
+  onCommitPending: () => void;
+  onChangeCard: () => void;
 }) {
   const { t } = useTranslation();
   const warning = getKtvWarning(session.endsAt, nowMs);
@@ -49,6 +62,7 @@ export function SpaBillPanel({
   const discount = (runningTotal * discountBps) / 10000;
   const minutesIn = Math.max(0, (quote?.elapsedMinutes || 0) - (quote?.pausedMinutes || 0));
   const isPaused = session.sessionState === "PAUSED";
+  const pendingCount = pending.reduce((sum, item) => sum + item.quantity, 0);
   const visibleLines = lines.filter(
     (line) => !["VOIDED", "COMPED"].includes(String(line.status || "").toUpperCase())
   );
@@ -95,7 +109,15 @@ export function SpaBillPanel({
               {" · "}
               {wallet.tierNameSnapshot}
               {discountBps ? ` ${discountBps / 100}%` : ""}
-              {card ? ` · …${card.cardUid.slice(-4)}` : ""}
+              {card ? ` · …${card.cardUid.slice(-4)} ✓` : ""}
+              {" "}
+              <button
+                type="button"
+                className="text-teal-300 underline-offset-2 hover:underline"
+                onClick={onChangeCard}
+              >
+                {t("spa.changeCard")}
+              </button>
             </span>
             <span className={Number(wallet.balance) < 0 ? "text-amber-300" : "text-emerald-300"}>
               {wallet.isPostpaidSnapshot
@@ -103,7 +125,9 @@ export function SpaBillPanel({
                 : money(wallet.balance)}
             </span>
           </p>
-        ) : null}
+        ) : (
+          <p>{t("spa.noCardYet")}</p>
+        )}
         <p className="flex justify-between gap-2">
           <span className="truncate">{timeLine}</span>
           {session.endsAt && !billClosed ? (
@@ -163,7 +187,7 @@ export function SpaBillPanel({
                       aria-label={t("spa.increase")}
                       className="h-7 w-7 text-base disabled:opacity-40"
                       disabled={isBusy}
-                      onClick={() => onChangeQuantity(line, 1)}
+                      onClick={() => onAddAnother(line)}
                     >
                       +
                     </button>
@@ -190,6 +214,60 @@ export function SpaBillPanel({
           })
         )}
       </section>
+
+      {pending.length ? (
+        <section className="space-y-1 rounded border border-teal-700/70 bg-teal-950/20 p-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-teal-300">
+            {t("spa.newItems")}
+          </p>
+          {pending.map((item) => (
+            <div key={item.variantId} className="flex items-center gap-2 text-sm">
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-medium">{item.name}</p>
+                <p className="text-xs text-slate-500">{money(item.unitPrice)}</p>
+              </div>
+              <div className="flex shrink-0 items-center rounded bg-slate-800">
+                <button
+                  type="button"
+                  aria-label={t("spa.decreaseNew")}
+                  className="h-7 w-7 text-base"
+                  onClick={() => onPendingChange(item.variantId, -1)}
+                >
+                  −
+                </button>
+                <span className="w-6 text-center text-xs font-semibold">{item.quantity}</span>
+                <button
+                  type="button"
+                  aria-label={t("spa.increaseNew")}
+                  className="h-7 w-7 text-base"
+                  onClick={() => onPendingChange(item.variantId, 1)}
+                >
+                  +
+                </button>
+              </div>
+              <span className="w-16 shrink-0 text-right font-semibold">
+                {money(item.unitPrice * item.quantity)}
+              </span>
+              <button
+                type="button"
+                aria-label={t("spa.removeNew")}
+                className="h-7 w-6 shrink-0 rounded text-slate-500 hover:bg-red-950/60 hover:text-red-300"
+                onClick={() => onPendingChange(item.variantId, -item.quantity)}
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+          <div className="grid grid-cols-[auto_1fr] gap-2 pt-1">
+            <Button variant="secondary" disabled={isBusy} onClick={onClearPending}>
+              {t("spa.clear")}
+            </Button>
+            <Button disabled={isBusy} onClick={onCommitPending}>
+              {t("spa.addToBill", { count: pendingCount, amount: money(pendingTotal(pending)) })}
+            </Button>
+          </div>
+        </section>
+      ) : null}
 
       <section className="space-y-0.5 text-sm">
         <p className="flex justify-between text-slate-300">

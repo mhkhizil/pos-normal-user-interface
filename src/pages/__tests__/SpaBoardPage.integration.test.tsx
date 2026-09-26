@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   fetchOrderLines: vi.fn(),
   updateOrderLine: vi.fn(),
   deleteOrderLine: vi.fn(),
+  addOrderLine: vi.fn(),
   settleOrder: vi.fn(),
   lookupCard: vi.fn(),
   getWallet: vi.fn(),
@@ -64,6 +65,14 @@ const quote = {
   runningTotal: "53000.0000",
 };
 
+const scrub = {
+  id: "product-scrub",
+  tenantId: "tenant-1",
+  name: "Foot Scrub",
+  basePrice: "6000.0000",
+};
+const scrubVariant = { id: "variant-scrub", productId: "product-scrub", priceModifier: "0" };
+
 let rooms = [room("wallet-1")];
 let lines: Record<string, unknown>[] = [];
 
@@ -93,8 +102,8 @@ vi.mock("@/core/presentation/hooks/useSpaManagement", () => ({
 
 vi.mock("@/core/presentation/hooks/useCashier", () => ({
   useCashier: () => ({
-    products: [],
-    variantsByProductId: {},
+    products: [scrub],
+    variantsByProductId: { "product-scrub": [scrubVariant] },
     paymentMethods: [
       { id: "card-method", tenantId: "tenant-1", name: "Guest Card", kind: "GUEST_CARD" },
       { id: "cash-method", tenantId: "tenant-1", name: "Cash", kind: "CASH" },
@@ -109,7 +118,7 @@ vi.mock("@/core/presentation/hooks/useSalesOrderManagement", () => ({
   useSalesOrderManagement: () => ({
     orderLines: lines,
     fetchOrderLines: mocks.fetchOrderLines,
-    addOrderLine: mocks.noop,
+    addOrderLine: mocks.addOrderLine,
     updateOrderLine: mocks.updateOrderLine,
     deleteOrderLine: mocks.deleteOrderLine,
     settleOrder: mocks.settleOrder,
@@ -155,18 +164,10 @@ const openRunningRoom = async () => {
 };
 
 const tapCard = async (uid = "04A3B2C1") => {
-  fireEvent.change(screen.getByPlaceholderText("spa.cardUid"), {
+  fireEvent.change(await screen.findByPlaceholderText("spa.cardUid"), {
     target: { value: uid },
   });
   fireEvent.click(screen.getByRole("button", { name: "spa.checkCard" }));
-  fireEvent.click(await screen.findByRole("button", { name: "spa.continue" }));
-};
-
-const openRoomAndTapCardToPay = async () => {
-  await openRunningRoom();
-  fireEvent.click(screen.getByRole("button", { name: "spa.goToPay" }));
-  await tapCard();
-  await screen.findByRole("button", { name: "spa.confirmPay" });
 };
 
 describe("SpaBoardPage", () => {
@@ -177,6 +178,7 @@ describe("SpaBoardPage", () => {
     mocks.fetchBoard.mockResolvedValue(rooms);
     mocks.getQuote.mockResolvedValue(quote);
     mocks.fetchOrderLines.mockResolvedValue({ lines: [] });
+    mocks.addOrderLine.mockResolvedValue({ id: "line-new" });
     mocks.closeSession.mockResolvedValue({ ...quote, state: "CLOSED" });
     mocks.lookupCard.mockResolvedValue(card);
     mocks.getWallet.mockResolvedValue(wallet);
@@ -196,9 +198,67 @@ describe("SpaBoardPage", () => {
     });
   });
 
+  it("opens a running room's bill and menu without asking for a card", async () => {
+    await openRunningRoom();
+
+    expect(mocks.getQuote).toHaveBeenCalledWith("session-1");
+    expect(screen.getByText("spa.noCardYet")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Foot Scrub/ })).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("spa.cardUid")).not.toBeInTheDocument();
+  });
+
+  it("collects items in the tray, then adds them all after one card tap", async () => {
+    await openRunningRoom();
+    fireEvent.click(screen.getByRole("button", { name: /Foot Scrub/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "spa.increaseNew" }));
+    expect(mocks.addOrderLine).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: /spa.addToBill/ }));
+    await tapCard();
+
+    await waitFor(() =>
+      expect(mocks.addOrderLine).toHaveBeenCalledWith("order-1", {
+        variantId: "variant-scrub",
+        quantity: "2.0000",
+        unitPrice: "6000.0000",
+        lineDiscount: "0.0000",
+      })
+    );
+    expect(await screen.findByText("spa.itemsAdded")).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("spa.cardUid")).not.toBeInTheDocument();
+  });
+
+  it("does not ask again once the card is tapped in this visit", async () => {
+    await openRunningRoom();
+    fireEvent.click(screen.getByRole("button", { name: /Foot Scrub/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /spa.addToBill/ }));
+    await tapCard();
+    await waitFor(() => expect(mocks.addOrderLine).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole("button", { name: /Foot Scrub/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /spa.addToBill/ }));
+
+    await waitFor(() => expect(mocks.addOrderLine).toHaveBeenCalledTimes(2));
+    expect(mocks.lookupCard).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the dialog open for a card that did not open the treatment", async () => {
+    rooms = [room("someone-else")];
+    await openRunningRoom();
+    fireEvent.click(screen.getByRole("button", { name: /Foot Scrub/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /spa.addToBill/ }));
+    await tapCard();
+
+    expect(await screen.findByText("spa.errors.wrongSessionCard")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("spa.cardUid")).toBeInTheDocument();
+    expect(mocks.addOrderLine).not.toHaveBeenCalled();
+  });
+
   it("closes the treatment, then settles its bill on the card under one key", async () => {
-    await openRoomAndTapCardToPay();
-    fireEvent.click(screen.getByRole("button", { name: "spa.confirmPay" }));
+    await openRunningRoom();
+    fireEvent.click(screen.getByRole("button", { name: "spa.goToPay" }));
+    await tapCard();
+    fireEvent.click(await screen.findByRole("button", { name: "spa.confirmPay" }));
 
     await waitFor(() =>
       expect(mocks.settleOrder).toHaveBeenCalledWith("order-1", {
@@ -207,7 +267,6 @@ describe("SpaBoardPage", () => {
         idempotencyKey: "spa-settle-session-1",
       })
     );
-    expect(mocks.closeSession).toHaveBeenCalledWith("session-1", {});
     expect(mocks.closeSession.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.settleOrder.mock.invocationCallOrder[0]
     );
@@ -215,8 +274,10 @@ describe("SpaBoardPage", () => {
   });
 
   it("splits the bill with cash when asked", async () => {
-    await openRoomAndTapCardToPay();
-    fireEvent.click(screen.getByLabelText("spa.splitCash"));
+    await openRunningRoom();
+    fireEvent.click(screen.getByRole("button", { name: "spa.goToPay" }));
+    await tapCard();
+    fireEvent.click(await screen.findByLabelText("spa.splitCash"));
     fireEvent.change(screen.getByLabelText("spa.cashAmount"), {
       target: { value: "20000" },
     });
@@ -235,33 +296,7 @@ describe("SpaBoardPage", () => {
     );
   });
 
-  it("refuses a card that did not open the treatment", async () => {
-    rooms = [room("someone-else")];
-    await openRunningRoom();
-    fireEvent.click(screen.getByRole("button", { name: "spa.goToPay" }));
-    await tapCard();
-
-    expect(await screen.findByText("spa.errors.wrongSessionCard")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "spa.confirmPay" })).not.toBeInTheDocument();
-  });
-
-  it("lets staff open a running room and see its bill without a card", async () => {
-    await openRunningRoom();
-
-    expect(mocks.getQuote).toHaveBeenCalledWith("session-1");
-    expect(screen.queryByPlaceholderText("spa.cardUid")).not.toBeInTheDocument();
-    expect(screen.getByText("spa.cardNeededToAdd")).toBeInTheDocument();
-  });
-
-  it("asks for the card before adding services", async () => {
-    await openRunningRoom();
-    fireEvent.click(screen.getByRole("button", { name: "spa.tapCard" }));
-
-    expect(await screen.findByText("spa.cardFor.menu")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("spa.cardUid")).toBeInTheDocument();
-  });
-
-  it("fixes a wrong tap by lowering the quantity or removing the item", async () => {
+  it("fixes a wrong line without a card by lowering or removing it", async () => {
     lines = [
       {
         id: "line-1",
@@ -275,17 +310,16 @@ describe("SpaBoardPage", () => {
     ];
     await openRunningRoom();
 
-    expect(await screen.findByText("Foot Scrub")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "spa.decrease" }));
     await waitFor(() =>
       expect(mocks.updateOrderLine).toHaveBeenCalledWith("order-1", "line-1", {
         quantity: "1.0000",
       })
     );
-
     fireEvent.click(screen.getByRole("button", { name: "spa.removeLine" }));
     await waitFor(() =>
       expect(mocks.deleteOrderLine).toHaveBeenCalledWith("order-1", "line-1")
     );
+    expect(mocks.lookupCard).not.toHaveBeenCalled();
   });
 });

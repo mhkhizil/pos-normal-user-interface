@@ -2,16 +2,14 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/Button";
-import { CardCaptureStatus } from "@/components/ui/CardCaptureStatus";
 import { SettleSalesOrderResultDTO } from "@/core/application/dtos/SalesOrderDTO";
 import {
   findMemberCardPaymentMethod,
   LOCAL_MEMBER_CARD_METHOD_ID,
 } from "@/core/application/services/PosPaymentCatalog";
-import { SalesOrderLine } from "@/core/domain/entities/Cashier";
+import { Product, SalesOrderLine } from "@/core/domain/entities/Cashier";
 import { GuestCard, GuestWallet } from "@/core/domain/entities/GuestWallet";
 import { SpaRoom, SpaSession } from "@/core/domain/entities/Spa";
-import { useCardCapture } from "@/core/presentation/hooks/useCardCapture";
 import { useCashier } from "@/core/presentation/hooks/useCashier";
 import { useGuestWalletManagement } from "@/core/presentation/hooks/useGuestWalletManagement";
 import { usePosWorkspace } from "@/core/presentation/hooks/usePosWorkspace";
@@ -25,20 +23,27 @@ import {
   estimateCardCharge,
 } from "@/lib/spa/payment";
 import {
+  addPending,
+  changePending,
+  PendingItem,
+  pendingTotal,
+} from "@/lib/spa/pending";
+import {
   findActiveSpaSession,
   isOpenSpaSession,
   spaSettleKey,
   treatmentLengthOptions,
 } from "@/lib/spa/session";
 import { ProductMenu } from "./cashier/ProductMenu";
+import { CardTapDialog } from "./spa/CardTapDialog";
 import { SpaBillPanel } from "./spa/SpaBillPanel";
 import { SpaRoomTile } from "./spa/SpaRoomTile";
 
-type SpaStep = "card" | "rooms" | "sessions" | "menu" | "pay";
-type CardAction = "open" | "menu" | "pay";
+type SpaStep = "rooms" | "sessions" | "menu" | "pay";
+type CardAction = "add" | "open" | "pay";
 
 const RESUME_KEY = "spa-pos-resume";
-type ResumeState = { roomId?: string; session?: SpaSession };
+type ResumeState = { roomId?: string; session?: SpaSession; pending?: PendingItem[] };
 
 const readResume = (): ResumeState | null => {
   try {
@@ -117,19 +122,21 @@ export function SpaBoardPage() {
   const [session, setSession] = useState<SpaSession | null>(null);
   const [guestCount, setGuestCount] = useState("1");
   const [plannedMinutes, setPlannedMinutes] = useState(60);
-  const [cardUid, setCardUid] = useState("");
-  const [cardFor, setCardFor] = useState<CardAction | null>(null);
   const [card, setCard] = useState<GuestCard | null>(null);
   const [wallet, setWallet] = useState<GuestWallet | null>(null);
+  const [pending, setPending] = useState<PendingItem[]>([]);
+  const [cardPrompt, setCardPrompt] = useState<CardAction | null>(null);
+  const [cardPromptError, setCardPromptError] = useState<string | null>(null);
+  const [isCheckingCard, setIsCheckingCard] = useState(false);
+  const [balanceWarning, setBalanceWarning] = useState<GuestWallet | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [lastAddedLineId, setLastAddedLineId] = useState<string | null>(null);
-  const [showInsufficient, setShowInsufficient] = useState(false);
   const [tip, setTip] = useState("");
   const [splitCash, setSplitCash] = useState(false);
   const [cashAmount, setCashAmount] = useState("");
   const [paid, setPaid] = useState<SettleSalesOrderResultDTO | null>(null);
   const [isPaying, setIsPaying] = useState(false);
+  const [isAdding, setIsAdding] = useState(false);
   const [showRoomForm, setShowRoomForm] = useState(false);
   const [editingRoom, setEditingRoom] = useState<SpaRoom | null>(null);
   const [roomForm, setRoomForm] = useState(emptyRoomForm);
@@ -163,6 +170,14 @@ export function SpaBoardPage() {
     if (room) names[room.rateVariantId] = t("spa.treatmentCharge");
     return names;
   }, [products, room, t, variantsByProductId]);
+  const pendingByProduct = useMemo(
+    () =>
+      pending.reduce<Record<string, number>>((counts, item) => {
+        counts[item.productId] = (counts[item.productId] || 0) + item.quantity;
+        return counts;
+      }, {}),
+    [pending]
+  );
   const visibleRooms = useMemo(
     () =>
       rooms.filter((item) => {
@@ -195,7 +210,6 @@ export function SpaBoardPage() {
       }
       setCard(foundCard);
       setWallet(foundWallet);
-      setCardUid(foundCard.cardUid);
       return { foundCard, foundWallet };
     },
     [getWallet, lookupCard, t]
@@ -216,10 +230,9 @@ export function SpaBoardPage() {
         if (resume?.session) {
           setSelectedRoomId(resume.roomId || resume.session.roomId || "");
           setSession(resume.session);
+          setPending(resume.pending || []);
           await loadBill(resume.session);
           setStep(resume.session.sessionState === "CLOSED" ? "pay" : "menu");
-        } else {
-          setStep("rooms");
         }
         setNotice(t("spa.cardAccepted"));
       })
@@ -241,34 +254,38 @@ export function SpaBoardPage() {
 
   useEffect(() => {
     const timer = window.setInterval(() => {
-      if (document.visibilityState === "visible") {
-        void fetchBoard();
-      }
+      if (document.visibilityState === "visible") void fetchBoard();
     }, 60000);
     return () => window.clearInterval(timer);
   }, [fetchBoard]);
 
-  const handleCardLookup = async (uid = cardUid) => {
-    if (!uid.trim()) return;
-    setActionError(null);
-    try {
-      await acceptCard(uid);
-      setNotice(t("spa.cardAccepted"));
-    } catch (caught) {
-      setCard(null);
-      setWallet(null);
-      setActionError(caught instanceof Error ? caught.message : t("spa.errors.cardLookup"));
+  const refreshBill = async (target: SpaSession) => {
+    if (target.salesOrderId) {
+      await fetchOrderLines(target.salesOrderId, { page: 1, limit: 200 });
     }
+    return getQuote(target.id);
   };
 
-  const { nfcSupported, nfcActive, nfcError, lastUid, startNfc } = useCardCapture({
-    enabled: step === "card",
-    onRead: (uid) => void handleCardLookup(uid),
-  });
+  const forgetCard = () => {
+    setCard(null);
+    setWallet(null);
+  };
+
+  const backToBoard = () => {
+    setSession(null);
+    clearQuote();
+    setSelectedRoomId("");
+    forgetCard();
+    setPending([]);
+    setPaid(null);
+    setNotice(null);
+    setActionError(null);
+    setStep("rooms");
+  };
 
   const openTopup = () => {
     if (!card || !wallet) return;
-    writeResume(session ? { roomId: selectedRoomId, session } : null);
+    writeResume(session ? { roomId: selectedRoomId, session, pending } : null);
     navigate("/cards", {
       state: {
         cardNumber: card.cardUid,
@@ -282,25 +299,19 @@ export function SpaBoardPage() {
     });
   };
 
-  const requireCard = (action: CardAction) => {
-    setCardFor(action);
+  const selectSession = async (next: SpaSession) => {
+    if (next.guestWalletId && wallet && next.guestWalletId !== wallet.id) {
+      forgetCard();
+    }
     setActionError(null);
-    setNotice(t(`spa.cardFor.${action}`, { room: room?.roomNumber || "" }));
-    setStep("card");
-  };
-
-  const backToBoard = () => {
-    setSession(null);
-    clearQuote();
-    setSelectedRoomId("");
-    setCard(null);
-    setWallet(null);
-    setCardUid("");
-    setCardFor(null);
+    setSession(next);
+    setPending([]);
     setPaid(null);
-    setNotice(null);
-    setActionError(null);
-    setStep("rooms");
+    setTip("");
+    setCashAmount("");
+    setSplitCash(false);
+    await loadBill(next);
+    setStep("menu");
   };
 
   const selectRoom = (next: SpaRoom) => {
@@ -317,54 +328,14 @@ export function SpaBoardPage() {
     setStep("sessions");
   };
 
-  const continueAfterCard = () => {
-    if (!wallet) return;
-    const action = cardFor;
-    setCardFor(null);
-    setNotice(null);
-    if (session && action !== "open") {
-      if (session.guestWalletId && session.guestWalletId !== wallet.id) {
-        setCard(null);
-        setWallet(null);
-        setCardUid("");
-        setCardFor(action);
-        setActionError(t("spa.errors.wrongSessionCard"));
-        return;
-      }
-      setStep(action || "menu");
-      return;
-    }
-    setStep(room ? "sessions" : "rooms");
-  };
-
-  const selectSession = async (next: SpaSession) => {
-    if (next.guestWalletId && wallet && next.guestWalletId !== wallet.id) {
-      setActionError(t("spa.errors.wrongSessionCard"));
-      return;
-    }
-    setActionError(null);
-    setSession(next);
-    setPaid(null);
-    setTip("");
-    setCashAmount("");
-    setSplitCash(false);
-    await loadBill(next);
-    setStep("menu");
-  };
-
-  const handleOpenSession = async (event: FormEvent) => {
-    event.preventDefault();
+  const openTreatment = async (payer: GuestWallet) => {
     if (!room) return;
-    if (!wallet) {
-      requireCard("open");
-      return;
-    }
     setActionError(null);
     try {
       const context = await requireCashierContext();
       const created = await openSession({
         roomId: room.id,
-        guestWalletId: wallet.id,
+        guestWalletId: payer.id,
         guestCount: Math.max(1, Number(guestCount) || 1),
         plannedMinutes,
         posRegisterId: context.posRegisterId,
@@ -373,90 +344,140 @@ export function SpaBoardPage() {
       });
       await fetchBoard();
       await selectSession(created);
+      setNotice(t("spa.treatmentStarted"));
     } catch (caught) {
       setActionError(caught instanceof Error ? caught.message : t("spa.errors.openSession"));
     }
   };
 
-  const handleAddProduct = async (
-    product: (typeof products)[number],
-    variantId: string,
-    quantity: number
-  ) => {
-    if (!session?.salesOrderId || !wallet || billClosed) {
-      throw new Error(t("spa.errors.sessionRequired"));
+  const commitPending = async (payer: GuestWallet, force = false) => {
+    if (!session?.salesOrderId || billClosed || !pending.length) return;
+    const estimate = estimateCardCharge({
+      runningTotal: Number(quote?.runningTotal || 0) + pendingTotal(pending),
+      discountBps: payer.discountBpsSnapshot,
+    });
+    if (!force && !cardCanCover(payer, estimate)) {
+      setBalanceWarning(payer);
+      return;
     }
+    setBalanceWarning(null);
+    setActionError(null);
+    setIsAdding(true);
+    let remaining = pending;
+    let added = 0;
+    try {
+      for (const item of pending) {
+        await addOrderLine(session.salesOrderId, {
+          variantId: item.variantId,
+          quantity: item.quantity.toFixed(4),
+          unitPrice: item.unitPrice.toFixed(4),
+          lineDiscount: "0.0000",
+        });
+        remaining = remaining.filter((entry) => entry.variantId !== item.variantId);
+        added += item.quantity;
+      }
+      setNotice(t("spa.itemsAdded", { count: added }));
+    } catch (caught) {
+      setActionError(caught instanceof Error ? caught.message : t("spa.errors.editLine"));
+    } finally {
+      setPending(remaining);
+      setIsAdding(false);
+      await refreshBill(session);
+    }
+  };
+
+  const runCardAction = (action: CardAction, payer: GuestWallet) => {
+    if (action === "add") void commitPending(payer);
+    else if (action === "open") void openTreatment(payer);
+    else setStep("pay");
+  };
+
+  const requestCard = (action: CardAction) => {
+    if (wallet) {
+      runCardAction(action, wallet);
+      return;
+    }
+    setCardPromptError(null);
+    setCardPrompt(action);
+  };
+
+  const handleCardRead = async (uid: string) => {
+    if (!cardPrompt || isCheckingCard) return;
+    setCardPromptError(null);
+    setIsCheckingCard(true);
+    try {
+      const { foundWallet } = await acceptCard(uid);
+      if (
+        cardPrompt !== "open" &&
+        session?.guestWalletId &&
+        session.guestWalletId !== foundWallet.id
+      ) {
+        forgetCard();
+        setCardPromptError(t("spa.errors.wrongSessionCard"));
+        return;
+      }
+      const action = cardPrompt;
+      setCardPrompt(null);
+      runCardAction(action, foundWallet);
+    } catch (caught) {
+      forgetCard();
+      setCardPromptError(
+        caught instanceof Error ? caught.message : t("spa.errors.cardLookup")
+      );
+    } finally {
+      setIsCheckingCard(false);
+    }
+  };
+
+  const handleOpenSession = (event: FormEvent) => {
+    event.preventDefault();
+    if (room) requestCard("open");
+  };
+
+  const handleAddProduct = async (product: Product, variantId: string, quantity: number) => {
+    if (!session || billClosed) throw new Error(t("spa.errors.sessionRequired"));
     const variants = variantsByProductId[product.id]?.length
       ? variantsByProductId[product.id]
       : await fetchProductVariants(product.id);
     const variant = variants.find((item) => item.id === variantId) || variants[0];
     if (!variant) throw new Error(t("cashier.productMenu.noVariant"));
-    const unitPrice = Number(product.basePrice || 0) + Number(variant.priceModifier || 0);
-    const line = await addOrderLine(session.salesOrderId, {
-      variantId: variant.id,
-      quantity: Math.max(1, quantity).toFixed(4),
-      unitPrice: unitPrice.toFixed(4),
-      lineDiscount: "0.0000",
-    });
-    setLastAddedLineId(line.id);
-    const nextQuote = await refreshBill(session);
-    const estimate = estimateCardCharge({
-      runningTotal: nextQuote.runningTotal,
-      discountBps: wallet.discountBpsSnapshot,
-    });
-    if (!cardCanCover(wallet, estimate)) {
-      setShowInsufficient(true);
-    } else {
-      setNotice(t("spa.itemAdded"));
-    }
+    setNotice(null);
+    setPending((current) =>
+      addPending(
+        current,
+        {
+          variantId: variant.id,
+          productId: product.id,
+          name: product.name,
+          unitPrice: Number(product.basePrice || 0) + Number(variant.priceModifier || 0),
+        },
+        Math.max(1, quantity)
+      )
+    );
   };
 
-  const removeLastItem = async () => {
-    setShowInsufficient(false);
-    if (!lastAddedLineId || !session?.salesOrderId) return;
-    await deleteOrderLine(session.salesOrderId, lastAddedLineId);
-    setLastAddedLineId(null);
-    await getQuote(session.id);
+  const addAnother = (line: SalesOrderLine) => {
+    const product = products.find((item) =>
+      (variantsByProductId[item.id] || []).some((variant) => variant.id === line.variantId)
+    );
+    setPending((current) =>
+      addPending(current, {
+        variantId: line.variantId,
+        productId: product?.id || line.variantId,
+        name: line.productName || itemNames[line.variantId] || t("spa.item"),
+        unitPrice: Number(line.unitPrice || 0),
+      })
+    );
   };
 
-  const refreshBill = async (target: SpaSession) => {
-    if (target.salesOrderId) {
-      await fetchOrderLines(target.salesOrderId, { page: 1, limit: 200 });
-    }
-    return getQuote(target.id);
-  };
-
-  const changeQuantity = async (line: SalesOrderLine, delta: number) => {
+  const reduceLine = async (line: SalesOrderLine) => {
     if (!session?.salesOrderId || billClosed) return;
-    if (delta > 0 && !wallet) {
-      requireCard("menu");
-      return;
-    }
-    const next = Number(line.quantity || 0) + delta;
+    const next = Number(line.quantity || 0) - 1;
     setActionError(null);
     try {
-      if (next <= 0) {
-        await deleteOrderLine(session.salesOrderId, line.id);
-      } else {
-        await updateOrderLine(session.salesOrderId, line.id, {
-          quantity: next.toFixed(4),
-        });
-      }
-      const nextQuote = await refreshBill(session);
-      if (
-        delta > 0 &&
-        wallet &&
-        !cardCanCover(
-          wallet,
-          estimateCardCharge({
-            runningTotal: nextQuote.runningTotal,
-            discountBps: wallet.discountBpsSnapshot,
-          })
-        )
-      ) {
-        setLastAddedLineId(null);
-        setShowInsufficient(true);
-      }
+      if (next <= 0) await deleteOrderLine(session.salesOrderId, line.id);
+      else await updateOrderLine(session.salesOrderId, line.id, { quantity: next.toFixed(4) });
+      await refreshBill(session);
     } catch (caught) {
       setActionError(caught instanceof Error ? caught.message : t("spa.errors.editLine"));
     }
@@ -467,7 +488,6 @@ export function SpaBoardPage() {
     setActionError(null);
     try {
       await deleteOrderLine(session.salesOrderId, line.id);
-      if (lastAddedLineId === line.id) setLastAddedLineId(null);
       await refreshBill(session);
       setNotice(t("spa.lineRemoved"));
     } catch (caught) {
@@ -487,7 +507,7 @@ export function SpaBoardPage() {
 
   const handlePay = async () => {
     if (!session?.salesOrderId || !card || !wallet) {
-      setActionError(t("spa.errors.sessionRequired"));
+      requestCard("pay");
       return;
     }
     if (!cardMethod || cardMethod.id === LOCAL_MEMBER_CARD_METHOD_ID) {
@@ -511,7 +531,7 @@ export function SpaBoardPage() {
           cash: cashValue,
         });
         if (!cardCanCover(wallet, estimate)) {
-          setShowInsufficient(true);
+          setActionError(t("spa.errors.balanceShort"));
           return;
         }
         await closeSession(session.id, {});
@@ -539,24 +559,12 @@ export function SpaBoardPage() {
     }
   };
 
-  const startNextGuest = () => {
-    setPaid(null);
-    setSession(null);
-    clearQuote();
-    setSelectedRoomId("");
-    setCard(null);
-    setWallet(null);
-    setCardUid("");
-    setNotice(null);
-    setStep("rooms");
-  };
-
   const goToPay = () => {
-    if (!wallet) {
-      requireCard("pay");
+    if (pending.length) {
+      setActionError(t("spa.errors.pendingItems"));
       return;
     }
-    setStep("pay");
+    requestCard("pay");
   };
 
   const handleSaveRoom = async (event: FormEvent) => {
@@ -602,16 +610,15 @@ export function SpaBoardPage() {
   const goBack = () => {
     setActionError(null);
     if (step === "pay") setStep(billClosed ? "pay" : "menu");
-    else if (step === "card" && session) {
-      setCardFor(null);
-      setNotice(null);
-      setStep(billClosed ? "pay" : "menu");
-    } else if (step === "card" && cardFor === "open") {
-      setCardFor(null);
-      setNotice(null);
-      setStep("sessions");
-    } else backToBoard();
+    else backToBoard();
   };
+
+  const cardPromptTitle =
+    cardPrompt === "add"
+      ? t("spa.confirmAddTitle")
+      : cardPrompt === "open"
+        ? t("spa.confirmStartTitle", { room: room?.roomNumber || "" })
+        : t("spa.confirmPayTitle");
 
   return (
     <section className="flex h-full min-h-0 flex-col bg-[#080808] p-4 text-white">
@@ -623,7 +630,7 @@ export function SpaBoardPage() {
         <div className="flex gap-2">
           {step !== "rooms" && !(step === "pay" && billClosed) && !paid ? (
             <Button variant="secondary" onClick={goBack}>
-              {t("cardTopup.back")}
+              {step === "pay" ? t("cardTopup.back") : t("spa.backToBoard")}
             </Button>
           ) : null}
           <Button
@@ -650,55 +657,6 @@ export function SpaBoardPage() {
           {actionError || error || notice}
         </p>
       )}
-
-      {step === "card" ? (
-        <form
-          className="mx-auto mt-10 w-full max-w-md space-y-4"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void handleCardLookup();
-          }}
-        >
-          <h2 className="text-2xl font-bold">{t("spa.cardTitle")}</h2>
-          <p className="text-sm text-slate-400">{t("spa.cardDescription")}</p>
-          <CardCaptureStatus
-            nfcSupported={nfcSupported}
-            nfcActive={nfcActive}
-            nfcError={nfcError}
-            lastUid={lastUid}
-            onEnableNfc={() => void startNfc()}
-          />
-          <input
-            value={cardUid}
-            onChange={(event) => setCardUid(event.target.value)}
-            placeholder={t("spa.cardUid")}
-            className="w-full rounded border border-slate-700 bg-slate-900 px-3 py-3"
-          />
-          <Button fullWidth type="submit" disabled={!cardUid.trim()}>
-            {t("spa.checkCard")}
-          </Button>
-          {wallet && card ? (
-            <div className="rounded border border-slate-700 p-4">
-              <p className="font-semibold">{wallet.guestName}</p>
-              <p className="text-sm text-slate-400">
-                {t("spa.tier", {
-                  tier: wallet.tierNameSnapshot,
-                  percent: (wallet.discountBpsSnapshot || 0) / 100,
-                })}
-              </p>
-              <p className="text-emerald-300">
-                {t("spa.balance", { amount: money(wallet.balance) })}
-              </p>
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                <Button variant="secondary" onClick={openTopup}>
-                  {t("spa.topUpCard")}
-                </Button>
-                <Button onClick={continueAfterCard}>{t("spa.continue")}</Button>
-              </div>
-            </div>
-          ) : null}
-        </form>
-      ) : null}
 
       {step === "rooms" ? (
         <>
@@ -742,27 +700,27 @@ export function SpaBoardPage() {
           {openSessions.map((item) => {
             const warning = getKtvWarning(item.endsAt, nowMs);
             return (
-            <button
-              key={item.id}
-              type="button"
-              className="rounded-lg border border-slate-700 bg-slate-900 p-4 text-left"
-              onClick={() => void selectSession(item)}
-            >
-              <p className="text-lg font-bold">{room.roomNumber}</p>
-              <p className="text-sm text-slate-300">
-                {t("spa.sessionOption", {
-                  time: new Date(item.openedAt).toLocaleTimeString(),
-                  count: item.guestCount,
-                })}
-              </p>
-              <p className="mt-2 text-sm">
-                {warning.level === "EXPIRED"
-                  ? t("spa.timeUp")
-                  : item.endsAt
-                    ? t("spa.minutesRemaining", { count: warning.remainingMinutes })
-                    : t(`spa.status.${item.sessionState.toLowerCase()}`)}
-              </p>
-            </button>
+              <button
+                key={item.id}
+                type="button"
+                className="rounded-lg border border-slate-700 bg-slate-900 p-4 text-left"
+                onClick={() => void selectSession(item)}
+              >
+                <p className="text-lg font-bold">{room.roomNumber}</p>
+                <p className="text-sm text-slate-300">
+                  {t("spa.sessionOption", {
+                    time: new Date(item.openedAt).toLocaleTimeString(),
+                    count: item.guestCount,
+                  })}
+                </p>
+                <p className="mt-2 text-sm">
+                  {warning.level === "EXPIRED"
+                    ? t("spa.timeUp")
+                    : item.endsAt
+                      ? t("spa.minutesRemaining", { count: warning.remainingMinutes })
+                      : t(`spa.status.${item.sessionState.toLowerCase()}`)}
+                </p>
+              </button>
             );
           })}
           {openSessions.length === 0 && room.status === "AVAILABLE" ? (
@@ -813,7 +771,7 @@ export function SpaBoardPage() {
       ) : null}
 
       {(step === "menu" || step === "pay") && session ? (
-        <div className="mt-4 grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-[22rem_minmax(0,1fr)]">
+        <div className="mt-4 grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-[24rem_minmax(0,1fr)]">
           <SpaBillPanel
             room={room}
             session={liveSession || session}
@@ -823,27 +781,31 @@ export function SpaBoardPage() {
             lines={orderLines}
             itemNames={itemNames}
             nowMs={nowMs}
-            isBusy={isLoading || isPaying}
+            isBusy={isLoading || isPaying || isAdding}
             billClosed={billClosed}
             primaryLabel={step === "menu" ? t("spa.goToPay") : t("spa.addServices")}
             onPrimary={() => (step === "menu" ? goToPay() : setStep("menu"))}
             onTogglePause={() => void togglePause()}
-            onChangeQuantity={(line, delta) => void changeQuantity(line, delta)}
+            onChangeQuantity={(line) => void reduceLine(line)}
+            onAddAnother={addAnother}
             onRemoveLine={(line) => void removeLine(line)}
+            pending={pending}
+            onPendingChange={(variantId, delta) =>
+              setPending((current) => changePending(current, variantId, delta))
+            }
+            onClearPending={() => setPending([])}
+            onCommitPending={() => requestCard("add")}
+            onChangeCard={forgetCard}
           />
 
-          {step === "menu" && !wallet ? (
-            <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-slate-700 p-8 text-center">
-              <p className="text-slate-300">{t("spa.cardNeededToAdd")}</p>
-              <Button onClick={() => requireCard("menu")}>{t("spa.tapCard")}</Button>
-            </div>
-          ) : step === "menu" ? (
+          {step === "menu" ? (
             <ProductMenu
               products={products}
               variantsByProductId={variantsByProductId}
+              orderedProductQuantities={pendingByProduct}
               onLoadVariants={fetchProductVariants}
               onAdd={handleAddProduct}
-              onClose={() => setStep("pay")}
+              onClose={goToPay}
             />
           ) : paid ? (
             <div className="rounded-lg border border-emerald-500 p-5">
@@ -860,7 +822,7 @@ export function SpaBoardPage() {
               <p className="mt-2 text-sm text-slate-400">
                 {t("spa.balance", { amount: money(wallet?.balance) })}
               </p>
-              <Button className="mt-4" onClick={startNextGuest}>
+              <Button className="mt-4" onClick={backToBoard}>
                 {t("spa.nextGuest")}
               </Button>
             </div>
@@ -909,7 +871,7 @@ export function SpaBoardPage() {
                 {t("spa.estimatedCard", { amount: money(estimatedCard) })}
               </p>
               <div className="grid grid-cols-2 gap-2">
-                <Button variant="secondary" onClick={openTopup}>
+                <Button variant="secondary" disabled={!wallet} onClick={openTopup}>
                   {t("spa.topUpCard")}
                 </Button>
                 <Button isLoading={isPaying} onClick={() => void handlePay()}>
@@ -921,25 +883,71 @@ export function SpaBoardPage() {
         </div>
       ) : null}
 
-      {showInsufficient ? (
+      {cardPrompt ? (
+        <CardTapDialog
+          title={cardPromptTitle}
+          error={cardPromptError}
+          isBusy={isCheckingCard}
+          onCardRead={(uid) => void handleCardRead(uid)}
+          onCancel={() => setCardPrompt(null)}
+        >
+          {cardPrompt === "add" ? (
+            <>
+              {pending.map((item) => (
+                <p key={item.variantId} className="flex justify-between">
+                  <span>
+                    {item.name} × {item.quantity}
+                  </span>
+                  <span>{money(item.unitPrice * item.quantity)}</span>
+                </p>
+              ))}
+              <p className="mt-1 flex justify-between border-t border-slate-800 pt-1 font-semibold">
+                <span>{t("spa.newItemsTotal")}</span>
+                <span>{money(pendingTotal(pending))}</span>
+              </p>
+            </>
+          ) : cardPrompt === "open" ? (
+            <p>
+              {t("spa.startSummary", {
+                room: room?.roomNumber || "",
+                minutes: plannedMinutes,
+                count: Math.max(1, Number(guestCount) || 1),
+              })}
+            </p>
+          ) : (
+            <p className="flex justify-between font-semibold">
+              <span>{t("spa.runningTotal")}</span>
+              <span>{money(quote?.runningTotal)}</span>
+            </p>
+          )}
+        </CardTapDialog>
+      ) : null}
+
+      {balanceWarning ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4">
-          <div className="w-full max-w-md rounded-lg border border-orange-400 bg-slate-950 p-5">
+          <div className="w-full max-w-md space-y-3 rounded-lg border border-orange-400 bg-slate-950 p-5">
             <h2 className="text-lg font-bold text-orange-300">{t("spa.insufficientTitle")}</h2>
-            <p className="mt-2 text-sm text-slate-300">{t("spa.insufficientDescription")}</p>
-            <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
-              <Button variant="secondary" onClick={() => void removeLastItem()}>
-                {t("spa.removeLastItem")}
+            <p className="text-sm text-slate-300">
+              {t("spa.balanceVsTotal", {
+                balance: money(balanceWarning.balance),
+                total: money(
+                  estimateCardCharge({
+                    runningTotal: Number(quote?.runningTotal || 0) + pendingTotal(pending),
+                    discountBps: balanceWarning.discountBpsSnapshot,
+                  })
+                ),
+              })}
+            </p>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              <Button variant="secondary" onClick={() => setBalanceWarning(null)}>
+                {t("common.cancel")}
               </Button>
               <Button onClick={openTopup}>{t("spa.topUpCard")}</Button>
               <Button
                 variant="secondary"
-                onClick={() => {
-                  setShowInsufficient(false);
-                  setSplitCash(true);
-                  setStep("pay");
-                }}
+                onClick={() => void commitPending(balanceWarning, true)}
               >
-                {t("spa.payRestInCash")}
+                {t("spa.addAnyway")}
               </Button>
             </div>
           </div>
