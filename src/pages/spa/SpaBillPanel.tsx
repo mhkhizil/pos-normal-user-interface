@@ -33,6 +33,7 @@ export function SpaBillPanel({
   onClearPending,
   onCommitPending,
   onChangeCard,
+  onExtend,
 }: {
   room: SpaRoom | null;
   session: SpaSession;
@@ -55,6 +56,7 @@ export function SpaBillPanel({
   onClearPending: () => void;
   onCommitPending: () => void;
   onChangeCard: () => void;
+  onExtend: () => void;
 }) {
   const { t } = useTranslation();
   const warning = getKtvWarning(session.endsAt, nowMs);
@@ -64,6 +66,7 @@ export function SpaBillPanel({
   const minutesIn = Math.max(0, (quote?.elapsedMinutes || 0) - (quote?.pausedMinutes || 0));
   const isPaused = session.sessionState === "PAUSED";
   const pendingCount = pending.reduce((sum, item) => sum + item.quantity, 0);
+  const prepaid = Boolean(quote?.prepaid);
   const visibleLines = lines.filter(
     (line) => !["VOIDED", "COMPED"].includes(String(line.status || "").toUpperCase())
   );
@@ -173,7 +176,20 @@ export function SpaBillPanel({
                   </p>
                   <p className="text-xs text-slate-500">{money(unitPrice)}</p>
                 </div>
-                {editable ? (
+                {editable && prepaid ? (
+                  <div className="flex shrink-0 items-center gap-1">
+                    <span className="text-xs text-slate-400">× {Number(quantity.toFixed(4))}</span>
+                    <button
+                      type="button"
+                      aria-label={t("spa.increase")}
+                      className="h-7 w-7 rounded bg-slate-800 text-base disabled:opacity-40"
+                      disabled={isBusy}
+                      onClick={() => onAddAnother(line)}
+                    >
+                      +
+                    </button>
+                  </div>
+                ) : editable ? (
                   <div className="flex shrink-0 items-center rounded bg-slate-800">
                     <button
                       type="button"
@@ -202,11 +218,14 @@ export function SpaBillPanel({
                     × {Number(quantity.toFixed(4))}
                   </span>
                 )}
-                <span className="w-16 shrink-0 text-right font-semibold">{money(total)}</span>
+                <span className="w-16 shrink-0 text-right font-semibold">
+                  {money(total)}
+                  {prepaid ? <span className="ml-1 text-xs text-emerald-400">✓</span> : null}
+                </span>
                 {editable ? (
                   <button
                     type="button"
-                    aria-label={t("spa.removeLine")}
+                    aria-label={prepaid ? t("spa.refundLine") : t("spa.removeLine")}
                     className="h-7 w-6 shrink-0 rounded text-slate-500 hover:bg-red-950/60 hover:text-red-300 disabled:opacity-40"
                     disabled={isBusy}
                     onClick={() => onRemoveLine(line)}
@@ -283,24 +302,39 @@ export function SpaBillPanel({
           <span>{t("spa.servicesCharge")}</span>
           <span>{money(quote?.servicesCharge)}</span>
         </p>
-        {discount > 0 ? (
+        {prepaid ? (
+          <p className="flex justify-between pt-1 text-base font-bold text-emerald-300">
+            <span>{t("spa.paidSoFar")}</span>
+            <span>{money(quote?.paidTotal)}</span>
+          </p>
+        ) : null}
+        {!prepaid && discount > 0 ? (
           <p className="flex justify-between text-teal-300">
             <span>{t("spa.discountLine", { percent: discountBps / 100 })}</span>
             <span>−{money(discount)}</span>
           </p>
         ) : null}
-        <p className="flex justify-between pt-1 text-base font-bold">
-          <span>{t("spa.estimatedTotal")}</span>
-          <span>{money(estimateCardCharge({ runningTotal, discountBps }))}</span>
-        </p>
-        <p className="text-[11px] text-slate-500">{t("spa.taxNote")}</p>
+        {!prepaid ? (
+          <>
+            <p className="flex justify-between pt-1 text-base font-bold">
+              <span>{t("spa.estimatedTotal")}</span>
+              <span>{money(estimateCardCharge({ runningTotal, discountBps }))}</span>
+            </p>
+            <p className="text-[11px] text-slate-500">{t("spa.taxNote")}</p>
+          </>
+        ) : null}
       </section>
 
       {!billClosed ? (
-        <div className="grid grid-cols-2 gap-2">
+        <div className={`grid gap-2 ${prepaid ? "grid-cols-3" : "grid-cols-2"}`}>
           <Button variant="secondary" disabled={isBusy} onClick={onTogglePause}>
             {isPaused ? t("spa.resume") : t("spa.pause")}
           </Button>
+          {prepaid ? (
+            <Button variant="secondary" disabled={isBusy} onClick={onExtend}>
+              {t("spa.extend")}
+            </Button>
+          ) : null}
           <Button disabled={isBusy} onClick={onPrimary}>
             {primaryLabel}
           </Button>

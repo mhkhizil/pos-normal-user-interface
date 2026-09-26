@@ -1,6 +1,8 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
+  ChargeSpaItemsDTO,
   CloseSpaSessionDTO,
+  ExtendSpaSessionDTO,
   CreateSpaRoomDTO,
   OpenSpaSessionDTO,
   UpdateSpaRoomDTO,
@@ -128,6 +130,36 @@ export function useSpaManagement() {
     [run, service]
   );
 
+  const extendSession = useCallback(
+    (id: string, payload: ExtendSpaSessionDTO) =>
+      run(async () => {
+        const result = await service.extendSession(id, payload);
+        setQuote(result.quote);
+        return result;
+      }),
+    [run, service]
+  );
+
+  const chargeItems = useCallback(
+    (id: string, payload: ChargeSpaItemsDTO) =>
+      run(async () => {
+        const result = await service.chargeItems(id, payload);
+        setQuote(result.quote);
+        return result;
+      }),
+    [run, service]
+  );
+
+  const refundLine = useCallback(
+    (id: string, lineId: string, reason?: string) =>
+      run(async () => {
+        const result = await service.refundLine(id, lineId, reason);
+        setQuote(result.quote);
+        return result;
+      }),
+    [run, service]
+  );
+
   const activeSessionByRoomId = useMemo(
     () =>
       Object.fromEntries(
@@ -152,6 +184,9 @@ export function useSpaManagement() {
     pauseSession,
     resumeSession,
     closeSession,
+    extendSession,
+    chargeItems,
+    refundLine,
     clearQuote: () => setQuote(null),
     clearError: () => setError(null),
   };

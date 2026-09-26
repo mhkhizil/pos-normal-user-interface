@@ -84,6 +84,8 @@ export class SpaSessionQuote {
   treatmentCharge!: string;
   servicesCharge!: string;
   runningTotal!: string;
+  prepaid!: boolean;
+  paidTotal!: string;
 
   constructor(data: Partial<SpaSessionQuote>) {
     Object.assign(this, { segments: [], ...data });

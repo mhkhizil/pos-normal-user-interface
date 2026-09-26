@@ -1,5 +1,8 @@
 import {
+  ChargeSpaItemsDTO,
   CloseSpaSessionDTO,
+  ExtendSpaSessionDTO,
+  SpaChargeResultDTO,
   CreateSpaRoomDTO,
   OpenSpaSessionDTO,
   UpdateSpaRoomDTO,
@@ -116,7 +119,18 @@ const toQuote = (value: unknown) => {
     treatmentCharge: String(item.treatmentCharge || "0.0000"),
     servicesCharge: String(item.servicesCharge || "0.0000"),
     runningTotal: String(item.runningTotal || "0.0000"),
+    prepaid: Boolean(item.prepaid),
+    paidTotal: String(item.paidTotal || "0.0000"),
   });
+};
+
+const toChargeResult = (value: unknown): SpaChargeResultDTO => {
+  const item = asRecord(value);
+  return {
+    charged: String(item.charged || "0.0000"),
+    balanceAfter: String(item.balanceAfter || "0.0000"),
+    quote: toQuote(item.quote),
+  };
 };
 
 export class ApiSpaRepository implements ISpaRepository {
@@ -188,6 +202,30 @@ export class ApiSpaRepository implements ISpaRepository {
       API_ENDPOINTS.SPA_SESSIONS.RESUME(id)
     );
     return toSession(unwrap(response));
+  }
+
+  async extendSession(id: string, payload: ExtendSpaSessionDTO): Promise<SpaChargeResultDTO> {
+    const response = await this.httpClient.post<ApiEnvelope<unknown>>(
+      API_ENDPOINTS.SPA_SESSIONS.EXTEND(id),
+      payload
+    );
+    return toChargeResult(unwrap(response));
+  }
+
+  async chargeItems(id: string, payload: ChargeSpaItemsDTO): Promise<SpaChargeResultDTO> {
+    const response = await this.httpClient.post<ApiEnvelope<unknown>>(
+      API_ENDPOINTS.SPA_SESSIONS.CHARGES(id),
+      payload
+    );
+    return toChargeResult(unwrap(response));
+  }
+
+  async refundLine(id: string, lineId: string, reason?: string): Promise<SpaChargeResultDTO> {
+    const response = await this.httpClient.post<ApiEnvelope<unknown>>(
+      API_ENDPOINTS.SPA_SESSIONS.REFUND_LINE(id, lineId),
+      reason ? { reason } : {}
+    );
+    return toChargeResult(unwrap(response));
   }
 
   async closeSession(

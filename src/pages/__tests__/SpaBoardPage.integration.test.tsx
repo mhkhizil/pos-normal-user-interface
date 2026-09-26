@@ -13,6 +13,9 @@ const mocks = vi.hoisted(() => ({
   deleteOrderLine: vi.fn(),
   addOrderLine: vi.fn(),
   updateRoom: vi.fn(),
+  chargeItems: vi.fn(),
+  extendSession: vi.fn(),
+  refundLine: vi.fn(),
   settleOrder: vi.fn(),
   lookupCard: vi.fn(),
   getWallet: vi.fn(),
@@ -57,7 +60,8 @@ const room = (guestWalletId: string) => ({
   ],
 });
 
-const quote = {
+let quote: Record<string, unknown> = {};
+const legacyQuote = {
   sessionId: "session-1",
   roomNumber: "SUITE1",
   segments: [],
@@ -97,6 +101,9 @@ vi.mock("@/core/presentation/hooks/useSpaManagement", () => ({
     pauseSession: mocks.noop,
     resumeSession: mocks.noop,
     closeSession: mocks.closeSession,
+    chargeItems: mocks.chargeItems,
+    extendSession: mocks.extendSession,
+    refundLine: mocks.refundLine,
     clearQuote: mocks.noop,
   }),
 }));
@@ -161,7 +168,7 @@ const renderPage = () =>
 const openRunningRoom = async () => {
   renderPage();
   fireEvent.click(screen.getByRole("button", { name: /SUITE1/ }));
-  await screen.findByRole("button", { name: "spa.goToPay" });
+  await screen.findByRole("button", { name: "spa.pause" });
 };
 
 const tapCard = async (uid = "04A3B2C1") => {
@@ -176,11 +183,12 @@ describe("SpaBoardPage", () => {
     vi.clearAllMocks();
     rooms = [room("wallet-1")];
     lines = [];
+    quote = legacyQuote;
     mocks.fetchBoard.mockResolvedValue(rooms);
-    mocks.getQuote.mockResolvedValue(quote);
+    mocks.getQuote.mockImplementation(() => Promise.resolve(quote));
     mocks.fetchOrderLines.mockResolvedValue({ lines: [] });
     mocks.addOrderLine.mockResolvedValue({ id: "line-new" });
-    mocks.closeSession.mockResolvedValue({ ...quote, state: "CLOSED" });
+    mocks.closeSession.mockImplementation(() => Promise.resolve({ ...quote, state: "CLOSED" }));
     mocks.lookupCard.mockResolvedValue(card);
     mocks.getWallet.mockResolvedValue(wallet);
     mocks.requireCashierContext.mockResolvedValue({
@@ -366,9 +374,99 @@ describe("SpaBoardPage", () => {
         expect.objectContaining({
           roomId: "room-1",
           guestWalletId: "wallet-1",
-          plannedMinutes: 300,
+          sessions: 5,
+          prepay: expect.objectContaining({
+            guestCardId: "card-1",
+            paymentMethodId: "card-method",
+            posSessionId: "pos-session-1",
+          }),
         })
       )
     );
+  });
+
+  describe("paid as it goes", () => {
+    const charged = (amount: string, balance: string) => ({
+      charged: amount,
+      balanceAfter: balance,
+      quote: { ...quote },
+    });
+
+    beforeEach(() => {
+      quote = { ...legacyQuote, prepaid: true, paidTotal: "45000.0000" };
+      mocks.chargeItems.mockResolvedValue(charged("10200.0000", "109800.0000"));
+      mocks.extendSession.mockResolvedValue(charged("51000.0000", "69000.0000"));
+      mocks.refundLine.mockResolvedValue(charged("-5100.0000", "114900.0000"));
+    });
+
+    it("charges the tray to the card in one go", async () => {
+      await openRunningRoom();
+      fireEvent.click(screen.getByRole("button", { name: /Foot Scrub/ }));
+      fireEvent.click(await screen.findByRole("button", { name: "spa.increaseNew" }));
+      fireEvent.click(screen.getByRole("button", { name: /spa.addToBill/ }));
+      await tapCard();
+
+      await waitFor(() =>
+        expect(mocks.chargeItems).toHaveBeenCalledWith(
+          "session-1",
+          expect.objectContaining({
+            guestCardId: "card-1",
+            paymentMethodId: "card-method",
+            items: [{ variantId: "variant-scrub", quantity: 2 }],
+          })
+        )
+      );
+      expect(mocks.addOrderLine).not.toHaveBeenCalled();
+      expect(await screen.findByText("spa.charged")).toBeInTheDocument();
+    });
+
+    it("extends by buying more sessions with a tap", async () => {
+      await openRunningRoom();
+      fireEvent.click(screen.getByRole("button", { name: "spa.extend" }));
+      fireEvent.click(screen.getByRole("button", { name: "spa.moreSessions" }));
+      fireEvent.click(screen.getByRole("button", { name: "spa.extendAndPay" }));
+      await tapCard();
+
+      await waitFor(() =>
+        expect(mocks.extendSession).toHaveBeenCalledWith(
+          "session-1",
+          expect.objectContaining({ sessions: 2, guestCardId: "card-1" })
+        )
+      );
+    });
+
+    it("refunds a wrong item to the card without asking for it", async () => {
+      lines = [
+        {
+          id: "line-1",
+          salesOrderId: "order-1",
+          variantId: "variant-scrub",
+          productName: "Foot Scrub",
+          quantity: "1.0000",
+          unitPrice: "6000.0000",
+          lineDiscount: "900.0000",
+          status: "PENDING",
+        },
+      ];
+      await openRunningRoom();
+      fireEvent.click(screen.getByRole("button", { name: "spa.refundLine" }));
+
+      await waitFor(() =>
+        expect(mocks.refundLine).toHaveBeenCalledWith("session-1", "line-1")
+      );
+      expect(mocks.lookupCard).not.toHaveBeenCalled();
+    });
+
+    it("ends the treatment without taking another payment", async () => {
+      await openRunningRoom();
+      fireEvent.click(screen.getByRole("button", { name: "spa.endTreatment" }));
+      const dialog = await screen.findByText("spa.endTitle");
+      expect(dialog).toBeInTheDocument();
+      fireEvent.click(screen.getAllByRole("button", { name: "spa.endTreatment" }).at(-1)!);
+
+      await waitFor(() => expect(mocks.closeSession).toHaveBeenCalledWith("session-1", {}));
+      expect(mocks.settleOrder).not.toHaveBeenCalled();
+      expect(mocks.lookupCard).not.toHaveBeenCalled();
+    });
   });
 });

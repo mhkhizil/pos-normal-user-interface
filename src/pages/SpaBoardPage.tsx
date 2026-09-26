@@ -40,7 +40,7 @@ import { SpaBillPanel } from "./spa/SpaBillPanel";
 import { SpaRoomTile } from "./spa/SpaRoomTile";
 
 type SpaStep = "rooms" | "sessions" | "menu" | "pay";
-type CardAction = "add" | "open" | "pay";
+type CardAction = "add" | "open" | "extend" | "pay";
 
 const RESUME_KEY = "spa-pos-resume";
 type ResumeState = { roomId?: string; session?: SpaSession; pending?: PendingItem[] };
@@ -93,6 +93,9 @@ export function SpaBoardPage() {
     pauseSession,
     resumeSession,
     closeSession,
+    extendSession,
+    chargeItems,
+    refundLine,
     clearQuote,
   } = useSpaManagement();
   const {
@@ -137,6 +140,10 @@ export function SpaBoardPage() {
   const [paid, setPaid] = useState<SettleSalesOrderResultDTO | null>(null);
   const [isPaying, setIsPaying] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
+  const [showExtend, setShowExtend] = useState(false);
+  const [extendCount, setExtendCount] = useState(1);
+  const [confirmEnd, setConfirmEnd] = useState(false);
+  const tapKeys = useRef<Partial<Record<CardAction, string>>>({});
   const [showRoomForm, setShowRoomForm] = useState(false);
   const [editingRoom, setEditingRoom] = useState<SpaRoom | null>(null);
   const [roomForm, setRoomForm] = useState(emptyRoomForm);
@@ -390,32 +397,93 @@ export function SpaBoardPage() {
     setStep("sessions");
   };
 
-  const openTreatment = async (payer: GuestWallet) => {
+  const keyFor = (action: CardAction) => {
+    if (!tapKeys.current[action]) {
+      tapKeys.current[action] =
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    }
+    return tapKeys.current[action]!;
+  };
+
+  const chargeFrom = async (action: CardAction, payerCard: GuestCard) => {
+    if (!cardMethod || cardMethod.id === LOCAL_MEMBER_CARD_METHOD_ID) {
+      throw new Error(t("spa.errors.paymentUnavailable"));
+    }
+    const context = await requireCashierContext();
+    return {
+      context,
+      charge: {
+        guestCardId: payerCard.id,
+        paymentMethodId: cardMethod.id,
+        posSessionId: context.posSessionId,
+        idempotencyKey: keyFor(action),
+      },
+    };
+  };
+
+  const showCharged = (payer: GuestWallet, charged: string, balanceAfter: string) => {
+    setWallet({ ...payer, balance: balanceAfter });
+    setNotice(
+      t("spa.charged", { amount: money(charged), balance: money(balanceAfter) })
+    );
+  };
+
+  const openTreatment = async (payer: GuestWallet, payerCard: GuestCard) => {
     if (!room) return;
     setActionError(null);
     try {
-      const context = await requireCashierContext();
+      const { context, charge } = await chargeFrom("open", payerCard);
       const created = await openSession({
         roomId: room.id,
         guestWalletId: payer.id,
         guestCount: Math.max(1, Number(guestCount) || 1),
-        plannedMinutes: sessionCount * sessionMinutes(room),
+        sessions: sessionCount,
+        prepay: charge,
         posRegisterId: context.posRegisterId,
         openedByPosSessionId: context.posSessionId,
         salesChannel: "POS",
       });
+      tapKeys.current.open = undefined;
       await fetchBoard();
       await selectSession(created);
+      setWallet(await getWallet(payer.id));
       setNotice(t("spa.treatmentStarted"));
     } catch (caught) {
       setActionError(caught instanceof Error ? caught.message : t("spa.errors.openSession"));
     }
   };
 
-  const commitPending = async (payer: GuestWallet, force = false) => {
+  const extendTreatment = async (payer: GuestWallet, payerCard: GuestCard) => {
+    if (!session) return;
+    setActionError(null);
+    setIsAdding(true);
+    try {
+      const { charge } = await chargeFrom("extend", payerCard);
+      const result = await extendSession(session.id, { ...charge, sessions: extendCount });
+      tapKeys.current.extend = undefined;
+      setShowExtend(false);
+      setSession({
+        ...session,
+        plannedMinutes:
+          (session.plannedMinutes || 0) + extendCount * sessionMinutes(room),
+      });
+      showCharged(payer, result.charged, result.balanceAfter);
+      await fetchBoard();
+      await refreshBill(session);
+    } catch (caught) {
+      setActionError(caught instanceof Error ? caught.message : t("spa.errors.extend"));
+    } finally {
+      setIsAdding(false);
+    }
+  };
+
+  const commitPending = async (payer: GuestWallet, payerCard: GuestCard, force = false) => {
     if (!session?.salesOrderId || billClosed || !pending.length) return;
+    const prepaid = Boolean(quote?.prepaid);
     const estimate = estimateCardCharge({
-      runningTotal: Number(quote?.runningTotal || 0) + pendingTotal(pending),
+      runningTotal: (prepaid ? 0 : Number(quote?.runningTotal || 0)) + pendingTotal(pending),
       discountBps: payer.discountBpsSnapshot,
     });
     if (!force && !cardCanCover(payer, estimate)) {
@@ -425,6 +493,24 @@ export function SpaBoardPage() {
     setBalanceWarning(null);
     setActionError(null);
     setIsAdding(true);
+    if (prepaid) {
+      try {
+        const { charge } = await chargeFrom("add", payerCard);
+        const result = await chargeItems(session.id, {
+          ...charge,
+          items: pending.map((item) => ({ variantId: item.variantId, quantity: item.quantity })),
+        });
+        tapKeys.current.add = undefined;
+        setPending([]);
+        showCharged(payer, result.charged, result.balanceAfter);
+      } catch (caught) {
+        setActionError(caught instanceof Error ? caught.message : t("spa.errors.editLine"));
+      } finally {
+        setIsAdding(false);
+        await refreshBill(session);
+      }
+      return;
+    }
     let remaining = pending;
     let added = 0;
     try {
@@ -448,15 +534,16 @@ export function SpaBoardPage() {
     }
   };
 
-  const runCardAction = (action: CardAction, payer: GuestWallet) => {
-    if (action === "add") void commitPending(payer);
-    else if (action === "open") void openTreatment(payer);
+  const runCardAction = (action: CardAction, payer: GuestWallet, payerCard: GuestCard) => {
+    if (action === "add") void commitPending(payer, payerCard);
+    else if (action === "open") void openTreatment(payer, payerCard);
+    else if (action === "extend") void extendTreatment(payer, payerCard);
     else setStep("pay");
   };
 
   const requestCard = (action: CardAction) => {
-    if (wallet) {
-      runCardAction(action, wallet);
+    if (wallet && card) {
+      runCardAction(action, wallet, card);
       return;
     }
     setCardPromptError(null);
@@ -468,7 +555,7 @@ export function SpaBoardPage() {
     setCardPromptError(null);
     setIsCheckingCard(true);
     try {
-      const { foundWallet } = await acceptCard(uid);
+      const { foundCard, foundWallet } = await acceptCard(uid);
       if (
         cardPrompt !== "open" &&
         session?.guestWalletId &&
@@ -480,7 +567,7 @@ export function SpaBoardPage() {
       }
       const action = cardPrompt;
       setCardPrompt(null);
-      runCardAction(action, foundWallet);
+      runCardAction(action, foundWallet, foundCard);
     } catch (caught) {
       forgetCard();
       setCardPromptError(
@@ -488,6 +575,33 @@ export function SpaBoardPage() {
       );
     } finally {
       setIsCheckingCard(false);
+    }
+  };
+
+  const endTreatment = async () => {
+    if (!session) return;
+    if (pending.length) {
+      setActionError(t("spa.errors.pendingItems"));
+      return;
+    }
+    setActionError(null);
+    setIsPaying(true);
+    try {
+      const final = await closeSession(session.id, {});
+      writeResume(null);
+      await fetchBoard();
+      backToBoard();
+      setNotice(
+        t("spa.treatmentEnded", {
+          room: final.roomNumber || room?.roomNumber || "",
+          amount: money(final.paidTotal),
+        })
+      );
+    } catch (caught) {
+      setActionError(caught instanceof Error ? caught.message : t("spa.errors.pay"));
+    } finally {
+      setIsPaying(false);
+      setConfirmEnd(false);
     }
   };
 
@@ -548,6 +662,22 @@ export function SpaBoardPage() {
   const removeLine = async (line: SalesOrderLine) => {
     if (!session?.salesOrderId || billClosed) return;
     setActionError(null);
+    if (quote?.prepaid) {
+      try {
+        const result = await refundLine(session.id, line.id);
+        await refreshBill(session);
+        if (wallet) setWallet({ ...wallet, balance: result.balanceAfter });
+        setNotice(
+          t("spa.refunded", {
+            amount: money(Math.abs(Number(result.charged))),
+            balance: money(result.balanceAfter),
+          })
+        );
+      } catch (caught) {
+        setActionError(caught instanceof Error ? caught.message : t("spa.errors.editLine"));
+      }
+      return;
+    }
     try {
       await deleteOrderLine(session.salesOrderId, line.id);
       await refreshBill(session);
@@ -680,7 +810,9 @@ export function SpaBoardPage() {
       ? t("spa.confirmAddTitle")
       : cardPrompt === "open"
         ? t("spa.confirmStartTitle", { room: room?.roomNumber || "" })
-        : t("spa.confirmPayTitle");
+        : cardPrompt === "extend"
+          ? t("spa.confirmExtendTitle", { count: extendCount })
+          : t("spa.confirmPayTitle");
 
   return (
     <section className="flex h-full min-h-0 flex-col bg-[#080808] p-4 text-white">
@@ -862,8 +994,26 @@ export function SpaBoardPage() {
             nowMs={nowMs}
             isBusy={isLoading || isPaying || isAdding}
             billClosed={billClosed}
-            primaryLabel={step === "menu" ? t("spa.goToPay") : t("spa.addServices")}
-            onPrimary={() => (step === "menu" ? goToPay() : setStep("menu"))}
+            primaryLabel={
+              quote?.prepaid
+                ? t("spa.endTreatment")
+                : step === "menu"
+                  ? t("spa.goToPay")
+                  : t("spa.addServices")
+            }
+            onPrimary={() =>
+              quote?.prepaid
+                ? pending.length
+                  ? setActionError(t("spa.errors.pendingItems"))
+                  : setConfirmEnd(true)
+                : step === "menu"
+                  ? goToPay()
+                  : setStep("menu")
+            }
+            onExtend={() => {
+              setExtendCount(1);
+              setShowExtend(true);
+            }}
             onTogglePause={() => void togglePause()}
             onChangeQuantity={(line) => void reduceLine(line)}
             onAddAnother={addAnother}
@@ -985,6 +1135,16 @@ export function SpaBoardPage() {
                 <span>{money(pendingTotal(pending))}</span>
               </p>
             </>
+          ) : cardPrompt === "extend" ? (
+            <p className="flex justify-between font-semibold">
+              <span>
+                {t("spa.sessionsSummary", {
+                  minutes: extendCount * sessionMinutes(room),
+                  perSession: sessionMinutes(room),
+                })}
+              </span>
+              {roomSessionPrice ? <span>{money(roomSessionPrice * extendCount)}</span> : null}
+            </p>
           ) : cardPrompt === "open" ? (
             <p>
               {t("spa.startSummary", {
@@ -1001,6 +1161,71 @@ export function SpaBoardPage() {
             </p>
           )}
         </CardTapDialog>
+      ) : null}
+
+      {showExtend && session ? (
+        <div className="fixed inset-0 z-40 grid place-items-center bg-black/75 p-4">
+          <div className="w-full max-w-sm space-y-4 rounded-lg border border-teal-500 bg-slate-950 p-5">
+            <h2 className="text-lg font-bold">{t("spa.extendTitle", { room: room?.roomNumber || "" })}</h2>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-slate-300">{t("spa.moreSessionsLabel")}</span>
+              <div className="flex items-center rounded bg-slate-800">
+                <button
+                  type="button"
+                  aria-label={t("spa.fewerSessions")}
+                  className="h-9 w-9 text-lg disabled:opacity-40"
+                  disabled={extendCount <= 1}
+                  onClick={() => setExtendCount((count) => Math.max(1, count - 1))}
+                >
+                  −
+                </button>
+                <span className="w-8 text-center font-semibold">{extendCount}</span>
+                <button
+                  type="button"
+                  aria-label={t("spa.moreSessions")}
+                  className="h-9 w-9 text-lg"
+                  onClick={() => setExtendCount((count) => count + 1)}
+                >
+                  +
+                </button>
+              </div>
+            </div>
+            <p className="text-sm text-teal-300">
+              {t("spa.sessionsSummary", {
+                minutes: extendCount * sessionMinutes(room),
+                perSession: sessionMinutes(room),
+              })}
+              {roomSessionPrice ? ` · ${money(roomSessionPrice * extendCount)}` : ""}
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <Button variant="secondary" onClick={() => setShowExtend(false)}>
+                {t("common.cancel")}
+              </Button>
+              <Button isLoading={isAdding} onClick={() => requestCard("extend")}>
+                {t("spa.extendAndPay")}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {confirmEnd && session ? (
+        <div className="fixed inset-0 z-40 grid place-items-center bg-black/75 p-4">
+          <div className="w-full max-w-sm space-y-4 rounded-lg border border-slate-600 bg-slate-950 p-5">
+            <h2 className="text-lg font-bold">{t("spa.endTitle", { room: room?.roomNumber || "" })}</h2>
+            <p className="text-sm text-slate-300">
+              {t("spa.endDescription", { amount: money(quote?.paidTotal) })}
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <Button variant="secondary" onClick={() => setConfirmEnd(false)}>
+                {t("common.cancel")}
+              </Button>
+              <Button isLoading={isPaying} onClick={() => void endTreatment()}>
+                {t("spa.endTreatment")}
+              </Button>
+            </div>
+          </div>
+        </div>
       ) : null}
 
       {balanceWarning ? (
@@ -1023,12 +1248,14 @@ export function SpaBoardPage() {
                 {t("common.cancel")}
               </Button>
               <Button onClick={openTopup}>{t("spa.topUpCard")}</Button>
-              <Button
-                variant="secondary"
-                onClick={() => void commitPending(balanceWarning, true)}
-              >
-                {t("spa.addAnyway")}
-              </Button>
+              {!quote?.prepaid && card ? (
+                <Button
+                  variant="secondary"
+                  onClick={() => void commitPending(balanceWarning, card, true)}
+                >
+                  {t("spa.addAnyway")}
+                </Button>
+              ) : null}
             </div>
           </div>
         </div>

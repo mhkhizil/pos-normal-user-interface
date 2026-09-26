@@ -1,5 +1,8 @@
 import {
+  ChargeSpaItemsDTO,
   CloseSpaSessionDTO,
+  ExtendSpaSessionDTO,
+  SpaChargeResultDTO,
   CreateSpaRoomDTO,
   OpenSpaSessionDTO,
   UpdateSpaRoomDTO,
@@ -69,6 +72,24 @@ export class SpaService implements ISpaService {
   resumeSession(id: string): Promise<SpaSession> {
     requireId(id, "Session ID");
     return this.repository.resumeSession(id);
+  }
+
+  extendSession(id: string, payload: ExtendSpaSessionDTO): Promise<SpaChargeResultDTO> {
+    requireId(id, "Session ID");
+    if (payload.sessions < 1) throw new Error("Add at least one session");
+    return this.repository.extendSession(id, payload);
+  }
+
+  chargeItems(id: string, payload: ChargeSpaItemsDTO): Promise<SpaChargeResultDTO> {
+    requireId(id, "Session ID");
+    if (!payload.items.length) throw new Error("Nothing to charge");
+    return this.repository.chargeItems(id, payload);
+  }
+
+  refundLine(id: string, lineId: string, reason?: string): Promise<SpaChargeResultDTO> {
+    requireId(id, "Session ID");
+    requireId(lineId, "Line ID");
+    return this.repository.refundLine(id, lineId, reason);
   }
 
   closeSession(id: string, payload: CloseSpaSessionDTO): Promise<SpaSessionQuote> {

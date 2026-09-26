@@ -1,5 +1,8 @@
 import {
+  ChargeSpaItemsDTO,
   CloseSpaSessionDTO,
+  ExtendSpaSessionDTO,
+  SpaChargeResultDTO,
   CreateSpaRoomDTO,
   OpenSpaSessionDTO,
   UpdateSpaRoomDTO,
@@ -17,4 +20,7 @@ export interface ISpaRepository {
   pauseSession(id: string): Promise<SpaSession>;
   resumeSession(id: string): Promise<SpaSession>;
   closeSession(id: string, payload: CloseSpaSessionDTO): Promise<SpaSessionQuote>;
+  extendSession(id: string, payload: ExtendSpaSessionDTO): Promise<SpaChargeResultDTO>;
+  chargeItems(id: string, payload: ChargeSpaItemsDTO): Promise<SpaChargeResultDTO>;
+  refundLine(id: string, lineId: string, reason?: string): Promise<SpaChargeResultDTO>;
 }

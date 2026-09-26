@@ -1239,7 +1239,8 @@
       "pay": "Unable to close and pay this treatment.",
       "editLine": "Unable to change this item on the bill.",
       "balanceShort": "The card cannot cover this bill. Top up or pay part in cash.",
-      "pendingItems": "Add or clear the new items before paying."
+      "pendingItems": "Add or clear the new items before paying.",
+      "extend": "Unable to extend this treatment."
     },
     "item": "Item",
     "tabBalance": "Tab: {{amount}}",
@@ -1282,7 +1283,20 @@
     "fewerSessions": "Fewer sessions",
     "moreSessions": "More sessions",
     "sessionsSummary": "{{minutes}} min in total ({{perSession}} min each)",
-    "perSession": "{{count}} min / session"
+    "perSession": "{{count}} min / session",
+    "charged": "Charged {{amount}} to the card · balance {{balance}}.",
+    "refunded": "Refunded {{amount}} to the card · balance {{balance}}.",
+    "paidSoFar": "Paid so far",
+    "extend": "Extend",
+    "extendTitle": "Extend {{room}}",
+    "moreSessionsLabel": "More sessions",
+    "extendAndPay": "Extend · tap card",
+    "confirmExtendTitle": "Pay for {{count}} more sessions",
+    "endTreatment": "End treatment",
+    "endTitle": "End treatment in {{room}}?",
+    "endDescription": "Paid so far {{amount}}. Nothing more will be charged, and the room goes for cleaning.",
+    "treatmentEnded": "Treatment in {{room}} ended · paid {{amount}}.",
+    "refundLine": "Refund to card"
   },
   "statusBadge": {
     "verified": "Verified",
