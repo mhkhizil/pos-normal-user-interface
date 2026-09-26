@@ -250,7 +250,7 @@ describe("SpaBoardPage", () => {
     expect(screen.queryByPlaceholderText("spa.cardUid")).not.toBeInTheDocument();
   });
 
-  it("does not ask again once the card is tapped in this visit", async () => {
+  it("asks for a card tap for every order", async () => {
     await openRunningRoom();
     fireEvent.click(screen.getByRole("button", { name: /Foot Scrub/ }));
     fireEvent.click(await screen.findByRole("button", { name: /spa.addToBill/ }));
@@ -260,8 +260,11 @@ describe("SpaBoardPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /Foot Scrub/ }));
     fireEvent.click(await screen.findByRole("button", { name: /spa.addToBill/ }));
 
+    expect(await screen.findByPlaceholderText("spa.cardUid")).toBeInTheDocument();
+    expect(mocks.addOrderLine).toHaveBeenCalledTimes(1);
+    await tapCard();
     await waitFor(() => expect(mocks.addOrderLine).toHaveBeenCalledTimes(2));
-    expect(mocks.lookupCard).toHaveBeenCalledTimes(1);
+    expect(mocks.lookupCard).toHaveBeenCalledTimes(2);
   });
 
   it("keeps the dialog open for a card that did not open the treatment", async () => {

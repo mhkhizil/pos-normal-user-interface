@@ -549,10 +549,6 @@ export function SpaBoardPage() {
   };
 
   const requestCard = (action: CardAction) => {
-    if (wallet && card) {
-      runCardAction(action, wallet, card);
-      return;
-    }
     setCardPromptError(null);
     setCardPrompt(action);
   };
