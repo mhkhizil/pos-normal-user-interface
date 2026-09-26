@@ -265,6 +265,11 @@ export function SpaBoardPage() {
 
   const selectRoom = (next: SpaRoom) => {
     setSelectedRoomId(next.id);
+    if (!wallet) {
+      setNotice(t("spa.tapCardForRoom", { room: next.roomNumber }));
+      setStep("card");
+      return;
+    }
     setSession(null);
     clearQuote();
     setGuestCount("1");
@@ -538,6 +543,11 @@ export function SpaBoardPage() {
           <Button fullWidth type="submit" disabled={!cardUid.trim()}>
             {t("spa.checkCard")}
           </Button>
+          {!card ? (
+            <Button fullWidth variant="secondary" onClick={() => setStep("rooms")}>
+              {t("spa.viewBoard")}
+            </Button>
+          ) : null}
           {wallet && card ? (
             <div className="rounded border border-slate-700 p-4">
               <p className="font-semibold">{wallet.guestName}</p>
@@ -554,7 +564,13 @@ export function SpaBoardPage() {
                 <Button variant="secondary" onClick={openTopup}>
                   {t("spa.topUpCard")}
                 </Button>
-                <Button onClick={() => setStep("rooms")}>{t("spa.selectRoom")}</Button>
+                {room ? (
+                  <Button onClick={() => selectRoom(room)}>
+                    {t("spa.continueToRoom", { room: room.roomNumber })}
+                  </Button>
+                ) : (
+                  <Button onClick={() => setStep("rooms")}>{t("spa.selectRoom")}</Button>
+                )}
               </div>
             </div>
           ) : null}

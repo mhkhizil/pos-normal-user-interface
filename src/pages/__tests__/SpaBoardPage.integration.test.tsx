@@ -226,4 +226,23 @@ describe("SpaBoardPage", () => {
     expect(await screen.findByText("spa.errors.wrongSessionCard")).toBeInTheDocument();
     expect(mocks.getQuote).not.toHaveBeenCalled();
   });
+
+  it("shows the board without a card and asks for one when a room is picked", async () => {
+    render(
+      <MemoryRouter initialEntries={["/spa"]}>
+        <SpaBoardPage />
+      </MemoryRouter>
+    );
+    fireEvent.click(screen.getByRole("button", { name: "spa.viewBoard" }));
+    fireEvent.click(screen.getByRole("button", { name: /SUITE1/ }));
+
+    expect(await screen.findByText("spa.tapCardForRoom")).toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText("spa.cardUid"), {
+      target: { value: "04A3B2C1" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "spa.checkCard" }));
+    fireEvent.click(await screen.findByRole("button", { name: "spa.continueToRoom" }));
+
+    expect(screen.getByRole("button", { name: /spa.sessionOption/ })).toBeInTheDocument();
+  });
 });
