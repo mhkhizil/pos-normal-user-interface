@@ -1244,7 +1244,6 @@
       "foc": "အခမဲ့ ပေး၍ မရပါ"
     },
     "item": "ပစ္စည်း",
-    "tabBalance": "အကြွေးစာရင်း: {{amount}}",
     "treatmentSoFar": "ယခုအထိ ကုသမှု",
     "discountLine": "အဖွဲ့ဝင်လျှော့စျေး ({{percent}}%)",
     "estimatedTotal": "ခန့်မှန်းစုစုပေါင်း",
@@ -1305,7 +1304,12 @@
     "focChooseReason": "အကြောင်းရင်း ရွေးပါ…",
     "focNoReasons": "လျှော့ဈေး အကြောင်းရင်း မသတ်မှတ်ရသေးပါ။ အခမဲ့မပေးမီ တစ်ခု ထည့်ပါ။",
     "focConfirm": "အခမဲ့ပေးမည်",
-    "focGiven": "{{count}} ခု အခမဲ့ပေးပြီး"
+    "focGiven": "{{count}} ခု အခမဲ့ပေးပြီး",
+    "focToggle": "{{name}} တစ်ခု အခမဲ့ပေးမည်",
+    "free": "အခမဲ့",
+    "giveFreeCount": "အခမဲ့ပေးမည် · {{count}}",
+    "addToBillWithFree": "ဘေလ်ထဲထည့်မည် · {{count}} · {{amount}} + အခမဲ့ {{free}}",
+    "owes": "ပေးရန် {{amount}}"
   },
   "statusBadge": {
     "verified": "အတည်ပြုပြီး",

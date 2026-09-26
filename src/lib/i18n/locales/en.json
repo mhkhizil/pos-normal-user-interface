@@ -1244,7 +1244,6 @@
       "foc": "Could not give the items free"
     },
     "item": "Item",
-    "tabBalance": "Tab: {{amount}}",
     "treatmentSoFar": "Treatment so far",
     "discountLine": "Member discount ({{percent}}%)",
     "estimatedTotal": "Estimated total",
@@ -1305,7 +1304,12 @@
     "focChooseReason": "Choose a reason…",
     "focNoReasons": "No discount reasons are set up yet. Add one before giving items free.",
     "focConfirm": "Give free",
-    "focGiven": "{{count}} items given free"
+    "focGiven": "{{count}} items given free",
+    "focToggle": "Give one {{name}} free",
+    "free": "Free",
+    "giveFreeCount": "Give free · {{count}}",
+    "addToBillWithFree": "Add to bill · {{count}} · {{amount}} + {{free}} free",
+    "owes": "Owes {{amount}}"
   },
   "statusBadge": {
     "verified": "Verified",

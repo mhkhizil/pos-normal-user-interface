@@ -6,7 +6,7 @@ import { SpaRoom, SpaSession, SpaSessionQuote } from "@/core/domain/entities/Spa
 import { getKtvWarning } from "@/lib/ktv/session";
 import { estimateCardCharge } from "@/lib/spa/payment";
 import { bookedSessions } from "@/lib/spa/session";
-import { PendingItem, pendingTotal } from "@/lib/spa/pending";
+import { focPending, PendingItem, pendingKey, pendingTotal } from "@/lib/spa/pending";
 
 const money = (value: string | number | undefined) =>
   Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 2 });
@@ -32,7 +32,7 @@ export function SpaBillPanel({
   onPendingChange,
   onClearPending,
   onCommitPending,
-  onGiveFree,
+  onToggleFoc,
   onChangeCard,
   onExtend,
 }: {
@@ -56,7 +56,7 @@ export function SpaBillPanel({
   onPendingChange: (variantId: string, delta: number) => void;
   onClearPending: () => void;
   onCommitPending: () => void;
-  onGiveFree: () => void;
+  onToggleFoc: (key: string) => void;
   onChangeCard: () => void;
   onExtend: () => void;
 }) {
@@ -68,6 +68,7 @@ export function SpaBillPanel({
   const minutesIn = Math.max(0, (quote?.elapsedMinutes || 0) - (quote?.pausedMinutes || 0));
   const isPaused = session.sessionState === "PAUSED";
   const pendingCount = pending.reduce((sum, item) => sum + item.quantity, 0);
+  const freeCount = focPending(pending).reduce((sum, item) => sum + item.quantity, 0);
   const prepaid = Boolean(quote?.prepaid);
   const visibleLines = lines.filter(
     (line) => !["VOIDED", "COMPED"].includes(String(line.status || "").toUpperCase())
@@ -130,9 +131,9 @@ export function SpaBillPanel({
               </button>
             </span>
             <span className={Number(wallet.balance) < 0 ? "text-amber-300" : "text-emerald-300"}>
-              {wallet.isPostpaidSnapshot
-                ? t("spa.tabBalance", { amount: money(wallet.balance) })
-                : money(wallet.balance)}
+              {Number(wallet.balance) < 0
+                ? t("spa.owes", { amount: money(-Number(wallet.balance)) })
+                : t("spa.balance", { amount: money(wallet.balance) })}
             </span>
           </p>
         ) : (
@@ -260,17 +261,30 @@ export function SpaBillPanel({
           </p>
           <div className="max-h-48 space-y-1 overflow-y-auto pr-1">
             {pending.map((item) => (
-              <div key={item.variantId} className="flex items-center gap-2 text-sm">
+              <div key={pendingKey(item)} className="flex items-center gap-2 text-sm">
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">{item.name}</p>
                   <p className="text-xs text-slate-500">{money(item.unitPrice)}</p>
                 </div>
+                <button
+                  type="button"
+                  aria-pressed={Boolean(item.foc)}
+                  aria-label={t("spa.focToggle", { name: item.name })}
+                  className={`h-7 shrink-0 rounded px-1.5 text-[10px] font-bold ${
+                    item.foc
+                      ? "bg-fuchsia-700 text-white"
+                      : "border border-slate-700 text-slate-400"
+                  }`}
+                  onClick={() => onToggleFoc(pendingKey(item))}
+                >
+                  {t("spa.foc")}
+                </button>
                 <div className="flex shrink-0 items-center rounded bg-slate-800">
                   <button
                     type="button"
                     aria-label={t("spa.decreaseNew")}
                     className="h-7 w-7 text-base"
-                    onClick={() => onPendingChange(item.variantId, -1)}
+                    onClick={() => onPendingChange(pendingKey(item), -1)}
                   >
                     −
                   </button>
@@ -279,34 +293,42 @@ export function SpaBillPanel({
                     type="button"
                     aria-label={t("spa.increaseNew")}
                     className="h-7 w-7 text-base"
-                    onClick={() => onPendingChange(item.variantId, 1)}
+                    onClick={() => onPendingChange(pendingKey(item), 1)}
                   >
                     +
                   </button>
                 </div>
                 <span className="w-16 shrink-0 text-right font-semibold">
-                  {money(item.unitPrice * item.quantity)}
+                  {item.foc ? t("spa.free") : money(item.unitPrice * item.quantity)}
                 </span>
                 <button
                   type="button"
                   aria-label={t("spa.removeNew")}
                   className="h-7 w-6 shrink-0 rounded text-slate-500 hover:bg-red-950/60 hover:text-red-300"
-                  onClick={() => onPendingChange(item.variantId, -item.quantity)}
+                  onClick={() => onPendingChange(pendingKey(item), -item.quantity)}
                 >
                   ✕
                 </button>
               </div>
             ))}
           </div>
-          <div className="grid grid-cols-[auto_auto_1fr] gap-2 pt-1">
+          <div className="grid grid-cols-[auto_1fr] gap-2 pt-1">
             <Button variant="secondary" disabled={isBusy} onClick={onClearPending}>
               {t("spa.clear")}
             </Button>
-            <Button variant="secondary" disabled={isBusy} onClick={onGiveFree}>
-              {t("spa.foc")}
-            </Button>
             <Button disabled={isBusy} onClick={onCommitPending}>
-              {t("spa.addToBill", { count: pendingCount, amount: money(pendingTotal(pending)) })}
+              {freeCount === pendingCount
+                ? t("spa.giveFreeCount", { count: freeCount })
+                : freeCount
+                  ? t("spa.addToBillWithFree", {
+                      count: pendingCount - freeCount,
+                      amount: money(pendingTotal(pending)),
+                      free: freeCount,
+                    })
+                  : t("spa.addToBill", {
+                      count: pendingCount,
+                      amount: money(pendingTotal(pending)),
+                    })}
             </Button>
           </div>
         </section>

@@ -26,8 +26,11 @@ import {
 import {
   addPending,
   changePending,
+  focPending,
+  paidPending,
   PendingItem,
   pendingTotal,
+  toggleOneFoc,
 } from "@/lib/spa/pending";
 import {
   findActiveSpaSession,
@@ -435,7 +438,8 @@ export function SpaBoardPage() {
   };
 
   const commitPending = async (payer: GuestWallet, payerCard: GuestCard, force = false) => {
-    if (!session?.salesOrderId || billClosed || !pending.length) return;
+    const toPay = paidPending(pending);
+    if (!session?.salesOrderId || billClosed || !toPay.length) return;
     const prepaid = Boolean(quote?.prepaid);
     const estimate = estimateCardCharge({
       runningTotal: (prepaid ? 0 : Number(quote?.runningTotal || 0)) + pendingTotal(pending),
@@ -453,10 +457,10 @@ export function SpaBoardPage() {
         const { charge } = await chargeFrom("add", payerCard);
         const result = await chargeItems(session.id, {
           ...charge,
-          items: pending.map((item) => ({ variantId: item.variantId, quantity: item.quantity })),
+          items: toPay.map((item) => ({ variantId: item.variantId, quantity: item.quantity })),
         });
         tapKeys.current.add = undefined;
-        setPending([]);
+        setPending(focPending);
         showCharged(payer, result.charged, result.balanceAfter);
       } catch (caught) {
         setActionError(caught instanceof Error ? caught.message : t("spa.errors.editLine"));
@@ -469,14 +473,14 @@ export function SpaBoardPage() {
     let remaining = pending;
     let added = 0;
     try {
-      for (const item of pending) {
+      for (const item of toPay) {
         await addOrderLine(session.salesOrderId, {
           variantId: item.variantId,
           quantity: item.quantity.toFixed(4),
           unitPrice: item.unitPrice.toFixed(4),
           lineDiscount: "0.0000",
         });
-        remaining = remaining.filter((entry) => entry.variantId !== item.variantId);
+        remaining = remaining.filter((entry) => entry !== item);
         added += item.quantity;
       }
       setNotice(t("spa.itemsAdded", { count: added }));
@@ -489,26 +493,33 @@ export function SpaBoardPage() {
     }
   };
 
-  const openFoc = () => {
+  const addPendingToBill = () => {
     setActionError(null);
-    setShowFoc(true);
-    void fetchDiscountReasons().catch(() => undefined);
+    if (focPending(pending).length) {
+      setShowFoc(true);
+      void fetchDiscountReasons().catch(() => undefined);
+      return;
+    }
+    requestCard("add");
   };
 
   const confirmFoc = async () => {
-    if (!session || !pending.length || !focReasonId) return;
+    const free = focPending(pending);
+    if (!session || !free.length || !focReasonId) return;
     setActionError(null);
     setIsGivingFoc(true);
     try {
       await giveFree(session.id, {
-        items: pending.map((item) => ({ variantId: item.variantId, quantity: item.quantity })),
+        items: free.map((item) => ({ variantId: item.variantId, quantity: item.quantity })),
         compReasonId: focReasonId,
       });
-      const count = pending.reduce((sum, item) => sum + item.quantity, 0);
-      setPending([]);
+      const count = free.reduce((sum, item) => sum + item.quantity, 0);
+      const rest = paidPending(pending);
+      setPending(rest);
       setShowFoc(false);
       setNotice(t("spa.focGiven", { count }));
       await refreshBill(session);
+      if (rest.length) requestCard("add");
     } catch (caught) {
       setActionError(caught instanceof Error ? caught.message : t("spa.errors.foc"));
     } finally {
@@ -1014,8 +1025,8 @@ export function SpaBoardPage() {
               setPending((current) => changePending(current, variantId, delta))
             }
             onClearPending={() => setPending([])}
-            onCommitPending={() => requestCard("add")}
-            onGiveFree={openFoc}
+            onCommitPending={addPendingToBill}
+            onToggleFoc={(key) => setPending((current) => toggleOneFoc(current, key))}
             onChangeCard={forgetCard}
           />
 
@@ -1115,7 +1126,7 @@ export function SpaBoardPage() {
         >
           {cardPrompt === "add" ? (
             <>
-              {pending.map((item) => (
+              {paidPending(pending).map((item) => (
                 <p key={item.variantId} className="flex justify-between">
                   <span>
                     {item.name} × {item.quantity}
@@ -1173,7 +1184,7 @@ export function SpaBoardPage() {
               <p className="mt-1 text-sm text-slate-400">{t("spa.focDescription")}</p>
             </div>
             <div className="max-h-56 space-y-1 overflow-y-auto rounded border border-slate-800 bg-slate-900/60 p-3 text-sm">
-              {pending.map((item) => (
+              {focPending(pending).map((item) => (
                 <p key={item.variantId} className="flex justify-between gap-2">
                   <span className="truncate">
                     {item.name} × {item.quantity}

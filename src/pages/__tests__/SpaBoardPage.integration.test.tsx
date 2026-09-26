@@ -370,7 +370,8 @@ describe("SpaBoardPage", () => {
     mocks.giveFree.mockResolvedValue({ charged: "0", balanceAfter: "120000", quote });
     await openRunningRoom();
     fireEvent.click(screen.getByRole("button", { name: /Foot Scrub/ }));
-    fireEvent.click(await screen.findByRole("button", { name: "spa.foc" }));
+    fireEvent.click(await screen.findByRole("button", { name: "spa.focToggle" }));
+    fireEvent.click(screen.getByRole("button", { name: "spa.giveFreeCount" }));
 
     const confirm = screen.getByRole("button", { name: "spa.focConfirm" });
     expect(confirm).toBeDisabled();
@@ -386,8 +387,37 @@ describe("SpaBoardPage", () => {
       })
     );
     expect(await screen.findByText("spa.focGiven")).toBeInTheDocument();
-    expect(mocks.lookupCard).not.toHaveBeenCalled();
+    expect(screen.queryByPlaceholderText("spa.cardUid")).not.toBeInTheDocument();
     expect(mocks.addOrderLine).not.toHaveBeenCalled();
+  });
+
+  it("gives one of a round free and asks the card for the rest", async () => {
+    mocks.giveFree.mockResolvedValue({ charged: "0", balanceAfter: "120000", quote });
+    await openRunningRoom();
+    fireEvent.click(screen.getByRole("button", { name: /Foot Scrub/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "spa.increaseNew" }));
+    fireEvent.click(screen.getByRole("button", { name: "spa.focToggle" }));
+    fireEvent.click(screen.getByRole("button", { name: "spa.addToBillWithFree" }));
+
+    fireEvent.change(screen.getByLabelText("spa.focReason"), {
+      target: { value: "reason-foc" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "spa.focConfirm" }));
+    await waitFor(() =>
+      expect(mocks.giveFree).toHaveBeenCalledWith("session-1", {
+        items: [{ variantId: "variant-scrub", quantity: 1 }],
+        compReasonId: "reason-foc",
+      })
+    );
+
+    await tapCard();
+    await waitFor(() =>
+      expect(mocks.addOrderLine).toHaveBeenCalledWith(
+        "order-1",
+        expect.objectContaining({ variantId: "variant-scrub", quantity: "1.0000" })
+      )
+    );
+    expect(mocks.addOrderLine).toHaveBeenCalledTimes(1);
   });
 
   it("marks a free line and lets it only be removed", async () => {
