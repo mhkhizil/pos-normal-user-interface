@@ -173,7 +173,7 @@ export function SpaBillPanel({
             return (
               <div key={line.id} className="flex items-center gap-2 py-2 text-sm">
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium">
+                  <p className="break-words font-medium leading-snug">
                     {isFoc ? (
                       <span className="mr-1 rounded bg-fuchsia-900/70 px-1 text-[10px] font-bold text-fuchsia-200">
                         {t("spa.foc")}
@@ -259,56 +259,58 @@ export function SpaBillPanel({
           <p className="text-xs font-semibold uppercase tracking-wide text-teal-300">
             {t("spa.newItems")} · {pendingCount}
           </p>
-          <div className="max-h-48 space-y-1 overflow-y-auto pr-1">
+          <div className="max-h-56 divide-y divide-slate-800/70 overflow-y-auto pr-1">
             {pending.map((item) => (
-              <div key={pendingKey(item)} className="flex items-center gap-2 text-sm">
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium">{item.name}</p>
-                  <p className="text-xs text-slate-500">{money(item.unitPrice)}</p>
+              <div key={pendingKey(item)} className="space-y-1 py-1 text-sm">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="min-w-0 break-words font-medium leading-snug">{item.name}</p>
+                  <span className="shrink-0 font-semibold">
+                    {item.foc ? t("spa.free") : money(item.unitPrice * item.quantity)}
+                  </span>
                 </div>
-                <button
-                  type="button"
-                  aria-pressed={Boolean(item.foc)}
-                  aria-label={t("spa.focToggle", { name: item.name })}
-                  className={`h-7 shrink-0 rounded px-1.5 text-[10px] font-bold ${
-                    item.foc
-                      ? "bg-fuchsia-700 text-white"
-                      : "border border-slate-700 text-slate-400"
-                  }`}
-                  onClick={() => onToggleFoc(pendingKey(item))}
-                >
-                  {t("spa.foc")}
-                </button>
-                <div className="flex shrink-0 items-center rounded bg-slate-800">
+                <div className="flex items-center gap-2">
+                  <span className="flex-1 text-xs text-slate-500">{money(item.unitPrice)}</span>
                   <button
                     type="button"
-                    aria-label={t("spa.decreaseNew")}
-                    className="h-7 w-7 text-base"
-                    onClick={() => onPendingChange(pendingKey(item), -1)}
+                    aria-pressed={Boolean(item.foc)}
+                    aria-label={t("spa.focToggle", { name: item.name })}
+                    className={`h-7 shrink-0 rounded px-1.5 text-[10px] font-bold ${
+                      item.foc
+                        ? "bg-fuchsia-700 text-white"
+                        : "border border-slate-700 text-slate-400"
+                    }`}
+                    onClick={() => onToggleFoc(pendingKey(item))}
                   >
-                    −
+                    {t("spa.foc")}
                   </button>
-                  <span className="w-6 text-center text-xs font-semibold">{item.quantity}</span>
+                  <div className="flex shrink-0 items-center rounded bg-slate-800">
+                    <button
+                      type="button"
+                      aria-label={t("spa.decreaseNew")}
+                      className="h-7 w-7 text-base"
+                      onClick={() => onPendingChange(pendingKey(item), -1)}
+                    >
+                      −
+                    </button>
+                    <span className="w-6 text-center text-xs font-semibold">{item.quantity}</span>
+                    <button
+                      type="button"
+                      aria-label={t("spa.increaseNew")}
+                      className="h-7 w-7 text-base"
+                      onClick={() => onPendingChange(pendingKey(item), 1)}
+                    >
+                      +
+                    </button>
+                  </div>
                   <button
                     type="button"
-                    aria-label={t("spa.increaseNew")}
-                    className="h-7 w-7 text-base"
-                    onClick={() => onPendingChange(pendingKey(item), 1)}
+                    aria-label={t("spa.removeNew")}
+                    className="h-7 w-6 shrink-0 rounded text-slate-500 hover:bg-red-950/60 hover:text-red-300"
+                    onClick={() => onPendingChange(pendingKey(item), -item.quantity)}
                   >
-                    +
+                    ✕
                   </button>
                 </div>
-                <span className="w-16 shrink-0 text-right font-semibold">
-                  {item.foc ? t("spa.free") : money(item.unitPrice * item.quantity)}
-                </span>
-                <button
-                  type="button"
-                  aria-label={t("spa.removeNew")}
-                  className="h-7 w-6 shrink-0 rounded text-slate-500 hover:bg-red-950/60 hover:text-red-300"
-                  onClick={() => onPendingChange(pendingKey(item), -item.quantity)}
-                >
-                  ✕
-                </button>
               </div>
             ))}
           </div>
