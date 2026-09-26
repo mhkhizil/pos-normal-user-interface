@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildSpaSettlePayments, cardCanCover, estimateCardCharge } from "../payment";
-import { spaSettleKey, treatmentLengthOptions } from "../session";
+import { bookedSessions, sessionMinutes, spaSettleKey } from "../session";
 import { SpaRoom } from "@/core/domain/entities/Spa";
 
 describe("spa payment", () => {
@@ -45,7 +45,10 @@ describe("spa payment", () => {
     expect(spaSettleKey("session-1")).toBe(spaSettleKey("session-1"));
   });
 
-  it("offers the room's treatment length and back-to-back multiples", () => {
-    expect(treatmentLengthOptions(new SpaRoom({ minimumMinutes: 90 }))).toEqual([90, 180, 270]);
+  it("counts time in sessions of the room's length", () => {
+    expect(sessionMinutes(new SpaRoom({ minimumMinutes: 90 }))).toBe(90);
+    expect(sessionMinutes(new SpaRoom({ minimumMinutes: 0 }))).toBe(60);
+    expect(bookedSessions(300, 60)).toBe(5);
+    expect(bookedSessions(undefined, 60)).toBe(0);
   });
 });

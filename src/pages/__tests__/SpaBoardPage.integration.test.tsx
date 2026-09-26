@@ -341,4 +341,34 @@ describe("SpaBoardPage", () => {
       )
     );
   });
+
+  it("starts a treatment for several sessions after a card tap", async () => {
+    rooms = [{ ...room("wallet-1"), status: "AVAILABLE", minimumMinutes: 60, sessions: [] }];
+    mocks.openSession.mockResolvedValue({
+      id: "session-2",
+      roomId: "room-1",
+      salesOrderId: "order-2",
+      guestWalletId: "wallet-1",
+      guestCount: 1,
+      openedAt: "2026-09-26T08:00:00Z",
+      sessionState: "OPEN",
+    });
+    renderPage();
+    fireEvent.click(screen.getByRole("button", { name: /SUITE1/ }));
+    for (let i = 0; i < 4; i += 1) {
+      fireEvent.click(screen.getByRole("button", { name: "spa.moreSessions" }));
+    }
+    fireEvent.click(screen.getByRole("button", { name: "spa.startSession" }));
+    await tapCard();
+
+    await waitFor(() =>
+      expect(mocks.openSession).toHaveBeenCalledWith(
+        expect.objectContaining({
+          roomId: "room-1",
+          guestWalletId: "wallet-1",
+          plannedMinutes: 300,
+        })
+      )
+    );
+  });
 });

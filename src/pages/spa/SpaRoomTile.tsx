@@ -51,7 +51,7 @@ export function SpaRoomTile({
           </span>
         </div>
         <div className="mt-5 grid grid-cols-2 gap-2 text-xs text-slate-300">
-          <span>{t("spa.treatmentMinutes", { count: room.minimumMinutes })}</span>
+          <span>{t("spa.perSession", { count: room.minimumMinutes })}</span>
           <span className="text-right">
             {session
               ? t("spa.guestCount", { count: session.guestCount })

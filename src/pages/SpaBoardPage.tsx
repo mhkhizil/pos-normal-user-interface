@@ -32,7 +32,7 @@ import {
   findActiveSpaSession,
   isOpenSpaSession,
   spaSettleKey,
-  treatmentLengthOptions,
+  sessionMinutes,
 } from "@/lib/spa/session";
 import { ProductMenu } from "./cashier/ProductMenu";
 import { CardTapDialog } from "./spa/CardTapDialog";
@@ -121,7 +121,7 @@ export function SpaBoardPage() {
   const [selectedRoomId, setSelectedRoomId] = useState("");
   const [session, setSession] = useState<SpaSession | null>(null);
   const [guestCount, setGuestCount] = useState("1");
-  const [plannedMinutes, setPlannedMinutes] = useState(60);
+  const [sessionCount, setSessionCount] = useState(1);
   const [card, setCard] = useState<GuestCard | null>(null);
   const [wallet, setWallet] = useState<GuestWallet | null>(null);
   const [pending, setPending] = useState<PendingItem[]>([]);
@@ -192,6 +192,7 @@ export function SpaBoardPage() {
         return variants.map((variant) => ({
           value: variant.id,
           group: product.categoryName || t("spa.otherProducts"),
+          price: Number(product.basePrice || 0) + Number(variant.priceModifier || 0),
           label: `${product.name}${
             variants.length > 1 && variant.variantSku ? ` · ${variant.variantSku}` : ""
           } — ${money(Number(product.basePrice || 0) + Number(variant.priceModifier || 0))}`,
@@ -210,6 +211,9 @@ export function SpaBoardPage() {
   const selectedTreatment = treatmentOptions.find(
     (option) => option.value === roomForm.rateVariantId
   );
+  const roomSessionPrice = treatmentOptions.find(
+    (option) => option.value === room?.rateVariantId
+  )?.price;
   const visibleRooms = useMemo(
     () =>
       rooms.filter((item) => {
@@ -280,14 +284,30 @@ export function SpaBoardPage() {
   }, [billClosed, getQuote, session, step]);
 
   const requestedVariants = useRef(new Set<string>());
+  const needsTreatmentPrices = showRoomForm || step === "sessions";
   useEffect(() => {
-    if (!showRoomForm) return;
-    for (const product of products) {
-      if (variantsByProductId[product.id] || requestedVariants.current.has(product.id)) continue;
-      requestedVariants.current.add(product.id);
-      void fetchProductVariants(product.id);
-    }
-  }, [fetchProductVariants, products, showRoomForm, variantsByProductId]);
+    if (!needsTreatmentPrices) return;
+    let cancelled = false;
+    const missing = products.filter(
+      (product) =>
+        !variantsByProductId[product.id] && !requestedVariants.current.has(product.id)
+    );
+    void (async () => {
+      for (const product of missing) {
+        if (cancelled) return;
+        requestedVariants.current.add(product.id);
+        try {
+          await fetchProductVariants(product.id);
+        } catch {
+          requestedVariants.current.delete(product.id);
+        }
+        await new Promise((resolve) => window.setTimeout(resolve, 400));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchProductVariants, needsTreatmentPrices, products, variantsByProductId]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNowMs(Date.now()), 30000);
@@ -361,7 +381,7 @@ export function SpaBoardPage() {
     setSession(null);
     clearQuote();
     setGuestCount("1");
-    setPlannedMinutes(treatmentLengthOptions(next)[0]);
+    setSessionCount(1);
     const running = next.sessions.filter(isOpenSpaSession);
     if (running.length === 1) {
       void selectSession(running[0]);
@@ -379,7 +399,7 @@ export function SpaBoardPage() {
         roomId: room.id,
         guestWalletId: payer.id,
         guestCount: Math.max(1, Number(guestCount) || 1),
-        plannedMinutes,
+        plannedMinutes: sessionCount * sessionMinutes(room),
         posRegisterId: context.posRegisterId,
         openedByPosSessionId: context.posSessionId,
         salesChannel: "POS",
@@ -771,21 +791,38 @@ export function SpaBoardPage() {
               onSubmit={handleOpenSession}
             >
               <p className="font-bold">{t("spa.newSession", { room: room.roomNumber })}</p>
-              <p className="text-sm text-slate-300">{t("spa.treatmentLength")}</p>
-              <div className="flex flex-wrap gap-2">
-                {treatmentLengthOptions(room).map((minutes) => (
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm text-slate-300">{t("spa.sessions")}</span>
+                <div className="flex items-center rounded bg-slate-800">
                   <button
-                    key={minutes}
                     type="button"
-                    className={`rounded px-3 py-2 text-sm font-semibold ${
-                      plannedMinutes === minutes ? "bg-teal-600" : "bg-slate-800"
-                    }`}
-                    onClick={() => setPlannedMinutes(minutes)}
+                    aria-label={t("spa.fewerSessions")}
+                    className="h-9 w-9 text-lg disabled:opacity-40"
+                    disabled={sessionCount <= 1}
+                    onClick={() => setSessionCount((count) => Math.max(1, count - 1))}
                   >
-                    {t("spa.treatmentMinutes", { count: minutes })}
+                    −
                   </button>
-                ))}
+                  <span className="w-8 text-center font-semibold">{sessionCount}</span>
+                  <button
+                    type="button"
+                    aria-label={t("spa.moreSessions")}
+                    className="h-9 w-9 text-lg"
+                    onClick={() => setSessionCount((count) => count + 1)}
+                  >
+                    +
+                  </button>
+                </div>
               </div>
+              <p className="text-sm text-teal-300">
+                {t("spa.sessionsSummary", {
+                  minutes: sessionCount * sessionMinutes(room),
+                  perSession: sessionMinutes(room),
+                })}
+                {roomSessionPrice
+                  ? ` · ${money(roomSessionPrice * sessionCount)}`
+                  : ""}
+              </p>
               <label className="block text-sm text-slate-300">
                 {t("spa.guestCountLabel")}
                 <input
@@ -952,7 +989,8 @@ export function SpaBoardPage() {
             <p>
               {t("spa.startSummary", {
                 room: room?.roomNumber || "",
-                minutes: plannedMinutes,
+                sessions: sessionCount,
+                minutes: sessionCount * sessionMinutes(room),
                 count: Math.max(1, Number(guestCount) || 1),
               })}
             </p>

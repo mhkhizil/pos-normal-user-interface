@@ -5,6 +5,7 @@ import { GuestCard, GuestWallet } from "@/core/domain/entities/GuestWallet";
 import { SpaRoom, SpaSession, SpaSessionQuote } from "@/core/domain/entities/Spa";
 import { getKtvWarning } from "@/lib/ktv/session";
 import { estimateCardCharge } from "@/lib/spa/payment";
+import { bookedSessions } from "@/lib/spa/session";
 import { PendingItem, pendingTotal } from "@/lib/spa/pending";
 
 const money = (value: string | number | undefined) =>
@@ -72,7 +73,11 @@ export function SpaBillPanel({
       time: new Date(session.openedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     }),
     session.plannedMinutes
-      ? t("spa.minutesOfBooked", { count: minutesIn, booked: session.plannedMinutes })
+      ? t("spa.minutesOfBooked", {
+          count: minutesIn,
+          booked: session.plannedMinutes,
+          sessions: bookedSessions(session.plannedMinutes, room?.minimumMinutes || 60),
+        })
       : t("spa.treatmentMinutes", { count: minutesIn }),
     t("spa.guestCount", { count: session.guestCount }),
   ].join(" · ");

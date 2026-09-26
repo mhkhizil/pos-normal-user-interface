@@ -14,9 +14,10 @@ export const findActiveSpaSession = (
         new Date(left.openedAt || 0).getTime()
     )[0];
 
-export const treatmentLengthOptions = (room?: SpaRoom | null): number[] => {
-  const unit = room?.minimumMinutes && room.minimumMinutes > 0 ? room.minimumMinutes : 60;
-  return [unit, unit * 2, unit * 3];
-};
+export const sessionMinutes = (room?: SpaRoom | null): number =>
+  room?.minimumMinutes && room.minimumMinutes > 0 ? room.minimumMinutes : 60;
+
+export const bookedSessions = (plannedMinutes: number | undefined, unit: number): number =>
+  plannedMinutes && unit > 0 ? Math.round((plannedMinutes / unit) * 10) / 10 : 0;
 
 export const spaSettleKey = (sessionId: string): string => `spa-settle-${sessionId}`;
