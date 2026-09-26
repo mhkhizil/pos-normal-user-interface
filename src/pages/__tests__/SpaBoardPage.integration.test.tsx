@@ -468,11 +468,12 @@ describe("SpaBoardPage", () => {
     expect(mocks.updateRoom.mock.calls[0][1]).not.toHaveProperty("rateVariantId");
   });
 
-  it("shows the menu by category, without the room's own price", async () => {
+  it("filters the menu by category, without the room's own price", async () => {
     await openRunningRoom();
 
     expect(screen.queryByRole("button", { name: /Spa room SUITE1/ })).not.toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Spa Services" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Spa Services" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Foot Scrub/ })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Beer & Spirits" }));
     expect(screen.getByRole("button", { name: /Myanmar Beer/ })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Foot Scrub/ })).not.toBeInTheDocument();
