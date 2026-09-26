@@ -1248,7 +1248,8 @@
       "paymentUnavailable": "Guest card payment is not set up for this branch.",
       "cashUnavailable": "Cash is not set up as a payment method.",
       "pay": "Unable to close and pay this treatment."
-    }
+    },
+    "item": "Item"
   },
   "statusBadge": {
     "verified": "Verified",

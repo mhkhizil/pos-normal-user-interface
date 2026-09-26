@@ -16,9 +16,13 @@ import { useGuestWalletManagement } from "@/core/presentation/hooks/useGuestWall
 import { usePosWorkspace } from "@/core/presentation/hooks/usePosWorkspace";
 import { useSalesOrderManagement } from "@/core/presentation/hooks/useSalesOrderManagement";
 import { useSpaManagement } from "@/core/presentation/hooks/useSpaManagement";
-import { getKtvWarning, hasSufficientWalletBalance } from "@/lib/ktv/session";
+import { getKtvWarning } from "@/lib/ktv/session";
 import { isUnspendableWalletStatus } from "@/lib/pos/guestWalletAmounts";
-import { buildSpaSettlePayments, estimateCardCharge } from "@/lib/spa/payment";
+import {
+  buildSpaSettlePayments,
+  cardCanCover,
+  estimateCardCharge,
+} from "@/lib/spa/payment";
 import {
   findActiveSpaSession,
   isOpenSpaSession,
@@ -138,6 +142,16 @@ export function SpaBoardPage() {
     tip: tipValue,
     cash: cashValue,
   });
+  const itemNames = useMemo(() => {
+    const names: Record<string, string> = {};
+    for (const product of products) {
+      for (const variant of variantsByProductId[product.id] || []) {
+        names[variant.id] = product.name;
+      }
+    }
+    if (room) names[room.rateVariantId] = t("spa.treatmentCharge");
+    return names;
+  }, [products, room, t, variantsByProductId]);
   const visibleRooms = useMemo(
     () =>
       rooms.filter((item) => {
@@ -321,7 +335,7 @@ export function SpaBoardPage() {
       runningTotal: nextQuote.runningTotal,
       discountBps: wallet.discountBpsSnapshot,
     });
-    if (!hasSufficientWalletBalance(wallet.balance, estimate)) {
+    if (!cardCanCover(wallet, estimate)) {
       setShowInsufficient(true);
     } else {
       setNotice(t("spa.itemAdded"));
@@ -371,7 +385,7 @@ export function SpaBoardPage() {
           tip: tipValue,
           cash: cashValue,
         });
-        if (!hasSufficientWalletBalance(wallet.balance, estimate)) {
+        if (!cardCanCover(wallet, estimate)) {
           setShowInsufficient(true);
           return;
         }
@@ -687,7 +701,7 @@ export function SpaBoardPage() {
                 orderLines.map((line) => (
                   <div key={line.id} className="flex justify-between text-sm">
                     <span className="truncate">
-                      {line.productName || line.variantId.slice(0, 8)}
+                      {line.productName || itemNames[line.variantId] || t("spa.item")}
                     </span>
                     <span>× {Number(line.quantity)}</span>
                   </div>

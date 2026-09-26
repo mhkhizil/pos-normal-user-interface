@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSpaSettlePayments, estimateCardCharge } from "../payment";
+import { buildSpaSettlePayments, cardCanCover, estimateCardCharge } from "../payment";
 import { spaSettleKey, treatmentLengthOptions } from "../session";
 import { SpaRoom } from "@/core/domain/entities/Spa";
 
@@ -27,6 +27,12 @@ describe("spa payment", () => {
     expect(
       buildSpaSettlePayments({ cardMethodId: "card-method", guestCardId: "card-1" })
     ).toEqual([{ paymentMethodId: "card-method", guestCardId: "card-1" }]);
+  });
+
+  it("lets a postpaid card run a tab below zero", () => {
+    expect(cardCanCover({ balance: "-96500", isPostpaidSnapshot: true }, 6000)).toBe(true);
+    expect(cardCanCover({ balance: "5000", isPostpaidSnapshot: false }, 6000)).toBe(false);
+    expect(cardCanCover({ balance: "6000" }, 6000)).toBe(true);
   });
 
   it("refuses cash when no cash method exists", () => {

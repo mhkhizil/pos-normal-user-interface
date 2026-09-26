@@ -1,4 +1,5 @@
 import { SettlePaymentDTO } from "@/core/application/dtos/SalesOrderDTO";
+import { hasSufficientWalletBalance } from "@/lib/ktv/session";
 
 const toMoney = (value: number): string => Math.max(0, value).toFixed(4);
 
@@ -17,6 +18,13 @@ export function estimateCardCharge({
   const discount = (total * Math.max(0, discountBps || 0)) / 10000;
   return Math.max(0, total - discount + (tip || 0) - (cash || 0));
 }
+
+export const cardCanCover = (
+  wallet: { balance?: string; isPostpaidSnapshot?: boolean },
+  amount: number
+): boolean =>
+  Boolean(wallet.isPostpaidSnapshot) ||
+  hasSufficientWalletBalance(wallet.balance, amount);
 
 export function buildSpaSettlePayments({
   cardMethodId,
