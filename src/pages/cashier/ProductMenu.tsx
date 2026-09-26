@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/Button";
 import { Product, ProductVariant } from "@/core/domain/entities/Cashier";
@@ -14,6 +14,7 @@ interface ProductMenuProps {
     quantity: number
   ) => Promise<void>;
   onClose: () => void;
+  groupByCategory?: boolean;
 }
 
 const variantLabel = (variant: ProductVariant): string =>
@@ -62,9 +63,11 @@ export function ProductMenu({
   onLoadVariants,
   onAdd,
   onClose,
+  groupByCategory = false,
 }: ProductMenuProps) {
   const { t } = useTranslation();
   const [search, setSearch] = useState("");
+  const [category, setCategory] = useState("");
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedVariantId, setSelectedVariantId] = useState("");
   const [variantOptions, setVariantOptions] = useState<ProductVariant[]>([]);
@@ -73,15 +76,32 @@ export function ProductMenu({
   const [needsVariantChoice, setNeedsVariantChoice] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
+  const categoryOf = useCallback(
+    (product: Product) => product.categoryName || t("cashier.productMenu.otherCategory"),
+    [t]
+  );
+
+  const categories = useMemo(
+    () =>
+      groupByCategory
+        ? [...new Set(products.map(categoryOf))].sort((left, right) =>
+            left.localeCompare(right)
+          )
+        : [],
+    [categoryOf, groupByCategory, products]
+  );
+
   const visibleProducts = useMemo(() => {
     const keyword = search.trim().toLowerCase();
-    if (!keyword) return products;
-    return products.filter((product) =>
-      [product.name, product.baseSku]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(keyword))
+    return products.filter(
+      (product) =>
+        (!category || categoryOf(product) === category) &&
+        (!keyword ||
+          [product.name, product.baseSku]
+            .filter(Boolean)
+            .some((value) => String(value).toLowerCase().includes(keyword)))
     );
-  }, [products, search]);
+  }, [category, categoryOf, products, search]);
 
   const variants = variantOptions.length
     ? variantOptions
@@ -181,8 +201,28 @@ export function ProductMenu({
         </Button>
       </header>
 
-      <div className="mt-2 grid min-h-0 flex-1 grid-cols-1 gap-2">
-        <div className="grid content-start grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-3 xl:grid-cols-4">
+      {groupByCategory && categories.length > 1 ? (
+        <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+          {["", ...categories].map((name) => (
+            <button
+              key={name || "all"}
+              type="button"
+              aria-pressed={category === name}
+              onClick={() => setCategory(name)}
+              className={`shrink-0 rounded-full px-3 py-1.5 text-sm font-semibold ${
+                category === name
+                  ? "bg-slate-100 text-slate-900"
+                  : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+              }`}
+            >
+              {name || t("cashier.productMenu.allCategories")}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      <div className="mt-2 min-h-0 flex-1 overflow-y-auto">
+        <div className="grid content-start grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
           {visibleProducts.map((product) => {
             const orderedQty = Number(orderedProductQuantities[product.id] || 0);
             const isSelected =
@@ -220,12 +260,12 @@ export function ProductMenu({
               </button>
             );
           })}
-          {visibleProducts.length === 0 ? (
-            <p className="col-span-full p-6 text-center text-sm text-slate-400">
-              {t("cashier.productMenu.notFound")}
-            </p>
-          ) : null}
         </div>
+        {visibleProducts.length === 0 ? (
+          <p className="p-6 text-center text-sm text-slate-400">
+            {t("cashier.productMenu.notFound")}
+          </p>
+        ) : null}
       </div>
       {localError && !needsVariantChoice ? (
         <p className="mt-2 text-xs text-red-300">{localError}</p>

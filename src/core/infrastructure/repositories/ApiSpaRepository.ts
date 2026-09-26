@@ -1,5 +1,6 @@
 import {
   ChargeSpaItemsDTO,
+  GiveFreeItemsDTO,
   CloseSpaSessionDTO,
   ExtendSpaSessionDTO,
   SpaChargeResultDTO,
@@ -75,6 +76,8 @@ const toRoom = (value: unknown) => {
     name: String(item.name || ""),
     capacity: Number(item.capacity || 1),
     rateVariantId: String(item.rateVariantId || ""),
+    sessionPrice: item.sessionPrice == null ? undefined : Number(item.sessionPrice),
+    rateProductId: optionalString(item.rateProductId),
     minimumMinutes: Number(item.minimumMinutes || 0),
     incrementMinutes: Number(item.incrementMinutes || 0),
     graceMinutes: Number(item.graceMinutes || 0),
@@ -215,6 +218,14 @@ export class ApiSpaRepository implements ISpaRepository {
   async chargeItems(id: string, payload: ChargeSpaItemsDTO): Promise<SpaChargeResultDTO> {
     const response = await this.httpClient.post<ApiEnvelope<unknown>>(
       API_ENDPOINTS.SPA_SESSIONS.CHARGES(id),
+      payload
+    );
+    return toChargeResult(unwrap(response));
+  }
+
+  async giveFree(id: string, payload: GiveFreeItemsDTO): Promise<SpaChargeResultDTO> {
+    const response = await this.httpClient.post<ApiEnvelope<unknown>>(
+      API_ENDPOINTS.SPA_SESSIONS.FOC(id),
       payload
     );
     return toChargeResult(unwrap(response));

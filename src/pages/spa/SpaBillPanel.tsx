@@ -6,7 +6,7 @@ import { SpaRoom, SpaSession, SpaSessionQuote } from "@/core/domain/entities/Spa
 import { getKtvWarning } from "@/lib/ktv/session";
 import { estimateCardCharge } from "@/lib/spa/payment";
 import { bookedSessions } from "@/lib/spa/session";
-import { PendingItem, pendingTotal } from "@/lib/spa/pending";
+import { focPending, PendingItem, pendingKey, pendingTotal } from "@/lib/spa/pending";
 
 const money = (value: string | number | undefined) =>
   Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 2 });
@@ -32,6 +32,7 @@ export function SpaBillPanel({
   onPendingChange,
   onClearPending,
   onCommitPending,
+  onToggleFoc,
   onChangeCard,
   onExtend,
 }: {
@@ -55,6 +56,7 @@ export function SpaBillPanel({
   onPendingChange: (variantId: string, delta: number) => void;
   onClearPending: () => void;
   onCommitPending: () => void;
+  onToggleFoc: (key: string) => void;
   onChangeCard: () => void;
   onExtend: () => void;
 }) {
@@ -66,6 +68,7 @@ export function SpaBillPanel({
   const minutesIn = Math.max(0, (quote?.elapsedMinutes || 0) - (quote?.pausedMinutes || 0));
   const isPaused = session.sessionState === "PAUSED";
   const pendingCount = pending.reduce((sum, item) => sum + item.quantity, 0);
+  const freeCount = focPending(pending).reduce((sum, item) => sum + item.quantity, 0);
   const prepaid = Boolean(quote?.prepaid);
   const visibleLines = lines.filter(
     (line) => !["VOIDED", "COMPED"].includes(String(line.status || "").toUpperCase())
@@ -86,7 +89,7 @@ export function SpaBillPanel({
   ].join(" · ");
 
   return (
-    <aside className="flex min-h-0 flex-col gap-3 overflow-y-auto rounded-lg border border-slate-800 p-3">
+    <aside className="flex min-h-0 flex-col gap-3 rounded-lg border border-slate-800 p-3 lg:overflow-hidden">
       <div className="flex items-center justify-between gap-2">
         <p className="truncate text-lg font-bold">
           {room?.roomNumber || quote?.roomNumber}
@@ -97,10 +100,10 @@ export function SpaBillPanel({
         <span
           className={`shrink-0 rounded px-2 py-0.5 text-xs font-semibold ${
             billClosed
-              ? "bg-amber-900/60 text-amber-200"
+              ? "border border-amber-500/40 text-amber-200"
               : isPaused
-                ? "bg-slate-700 text-slate-200"
-                : "bg-teal-900/60 text-teal-200"
+                ? "border border-slate-700 text-slate-400"
+                : "border border-slate-600 text-slate-200"
           }`}
         >
           {billClosed
@@ -121,16 +124,16 @@ export function SpaBillPanel({
               {" "}
               <button
                 type="button"
-                className="text-teal-300 underline-offset-2 hover:underline"
+                className="text-slate-300 underline underline-offset-2 hover:text-white"
                 onClick={onChangeCard}
               >
                 {t("spa.changeCard")}
               </button>
             </span>
-            <span className={Number(wallet.balance) < 0 ? "text-amber-300" : "text-emerald-300"}>
-              {wallet.isPostpaidSnapshot
-                ? t("spa.tabBalance", { amount: money(wallet.balance) })
-                : money(wallet.balance)}
+            <span className={Number(wallet.balance) < 0 ? "text-amber-300" : "text-slate-200"}>
+              {Number(wallet.balance) < 0
+                ? t("spa.owes", { amount: money(-Number(wallet.balance)) })
+                : t("spa.balance", { amount: money(wallet.balance) })}
             </span>
           </p>
         ) : (
@@ -144,7 +147,7 @@ export function SpaBillPanel({
                 warning.level === "EXPIRED"
                   ? "text-red-300"
                   : warning.level === "WARNING"
-                    ? "text-orange-300"
+                    ? "text-amber-300"
                     : "text-slate-200"
               }`}
             >
@@ -156,7 +159,7 @@ export function SpaBillPanel({
         </p>
       </div>
 
-      <section className="min-h-0 flex-1 divide-y divide-slate-800 border-y border-slate-800">
+      <section className="min-h-[5rem] flex-1 divide-y divide-slate-800 overflow-y-auto border-y border-slate-800">
         {visibleLines.length === 0 ? (
           <p className="py-3 text-xs text-slate-500">{t("spa.noLines")}</p>
         ) : (
@@ -165,18 +168,28 @@ export function SpaBillPanel({
             const unitPrice = Number(line.unitPrice || 0);
             const total = quantity * unitPrice - Number(line.lineDiscount || 0);
             const isTreatment = line.variantId === room?.rateVariantId;
+            const isFoc = Boolean(line.compReasonId);
             const editable = !billClosed && !isTreatment;
             return (
               <div key={line.id} className="flex items-center gap-2 py-2 text-sm">
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium">
+                  <p className="break-words font-medium leading-snug">
+                    {isFoc ? (
+                      <span className="mr-1.5 rounded border border-slate-500 px-1 text-[10px] font-semibold tracking-wide text-slate-300">
+                        {t("spa.foc")}
+                      </span>
+                    ) : null}
                     {isTreatment
                       ? t("spa.treatmentCharge")
                       : line.productName || itemNames[line.variantId] || t("spa.item")}
                   </p>
                   <p className="text-xs text-slate-500">{money(unitPrice)}</p>
                 </div>
-                {editable && prepaid ? (
+                {editable && isFoc ? (
+                  <span className="shrink-0 text-xs text-slate-400">
+                    × {Number(quantity.toFixed(4))}
+                  </span>
+                ) : editable && prepaid ? (
                   <div className="flex shrink-0 items-center gap-1">
                     <span className="text-xs text-slate-400">× {Number(quantity.toFixed(4))}</span>
                     <button
@@ -220,12 +233,14 @@ export function SpaBillPanel({
                 )}
                 <span className="w-16 shrink-0 text-right font-semibold">
                   {money(total)}
-                  {prepaid ? <span className="ml-1 text-xs text-emerald-400">✓</span> : null}
+                  {prepaid && !isFoc ? (
+                    <span className="ml-1 text-xs text-slate-500">✓</span>
+                  ) : null}
                 </span>
                 {editable ? (
                   <button
                     type="button"
-                    aria-label={prepaid ? t("spa.refundLine") : t("spa.removeLine")}
+                    aria-label={prepaid && !isFoc ? t("spa.refundLine") : t("spa.removeLine")}
                     className="h-7 w-6 shrink-0 rounded text-slate-500 hover:bg-red-950/60 hover:text-red-300 disabled:opacity-40"
                     disabled={isBusy}
                     onClick={() => onRemoveLine(line)}
@@ -240,60 +255,88 @@ export function SpaBillPanel({
       </section>
 
       {pending.length ? (
-        <section className="space-y-1 rounded border border-teal-700/70 bg-teal-950/20 p-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-teal-300">
-            {t("spa.newItems")}
+        <section className="flex shrink-0 flex-col gap-1 rounded border border-slate-700 bg-slate-900/70 p-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+            {t("spa.newItems")} · {pendingCount}
           </p>
-          {pending.map((item) => (
-            <div key={item.variantId} className="flex items-center gap-2 text-sm">
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-medium">{item.name}</p>
-                <p className="text-xs text-slate-500">{money(item.unitPrice)}</p>
+          <div className="max-h-56 divide-y divide-slate-800/70 overflow-y-auto pr-1">
+            {pending.map((item) => (
+              <div key={pendingKey(item)} className="space-y-1 py-1 text-sm">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="min-w-0 break-words font-medium leading-snug">{item.name}</p>
+                  <span className="shrink-0 font-semibold">
+                    {item.foc ? t("spa.free") : money(item.unitPrice * item.quantity)}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="flex-1 text-xs text-slate-500">{money(item.unitPrice)}</span>
+                  <button
+                    type="button"
+                    aria-pressed={Boolean(item.foc)}
+                    aria-label={t("spa.focToggle", { name: item.name })}
+                    className={`h-7 shrink-0 rounded px-1.5 text-[10px] font-bold ${
+                      item.foc
+                        ? "border border-slate-200 bg-slate-200 text-slate-900"
+                        : "border border-slate-700 text-slate-400"
+                    }`}
+                    onClick={() => onToggleFoc(pendingKey(item))}
+                  >
+                    {t("spa.foc")}
+                  </button>
+                  <div className="flex shrink-0 items-center rounded bg-slate-800">
+                    <button
+                      type="button"
+                      aria-label={t("spa.decreaseNew")}
+                      className="h-7 w-7 text-base"
+                      onClick={() => onPendingChange(pendingKey(item), -1)}
+                    >
+                      −
+                    </button>
+                    <span className="w-6 text-center text-xs font-semibold">{item.quantity}</span>
+                    <button
+                      type="button"
+                      aria-label={t("spa.increaseNew")}
+                      className="h-7 w-7 text-base"
+                      onClick={() => onPendingChange(pendingKey(item), 1)}
+                    >
+                      +
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    aria-label={t("spa.removeNew")}
+                    className="h-7 w-6 shrink-0 rounded text-slate-500 hover:bg-red-950/60 hover:text-red-300"
+                    onClick={() => onPendingChange(pendingKey(item), -item.quantity)}
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
-              <div className="flex shrink-0 items-center rounded bg-slate-800">
-                <button
-                  type="button"
-                  aria-label={t("spa.decreaseNew")}
-                  className="h-7 w-7 text-base"
-                  onClick={() => onPendingChange(item.variantId, -1)}
-                >
-                  −
-                </button>
-                <span className="w-6 text-center text-xs font-semibold">{item.quantity}</span>
-                <button
-                  type="button"
-                  aria-label={t("spa.increaseNew")}
-                  className="h-7 w-7 text-base"
-                  onClick={() => onPendingChange(item.variantId, 1)}
-                >
-                  +
-                </button>
-              </div>
-              <span className="w-16 shrink-0 text-right font-semibold">
-                {money(item.unitPrice * item.quantity)}
-              </span>
-              <button
-                type="button"
-                aria-label={t("spa.removeNew")}
-                className="h-7 w-6 shrink-0 rounded text-slate-500 hover:bg-red-950/60 hover:text-red-300"
-                onClick={() => onPendingChange(item.variantId, -item.quantity)}
-              >
-                ✕
-              </button>
-            </div>
-          ))}
+            ))}
+          </div>
           <div className="grid grid-cols-[auto_1fr] gap-2 pt-1">
             <Button variant="secondary" disabled={isBusy} onClick={onClearPending}>
               {t("spa.clear")}
             </Button>
             <Button disabled={isBusy} onClick={onCommitPending}>
-              {t("spa.addToBill", { count: pendingCount, amount: money(pendingTotal(pending)) })}
+              {freeCount === pendingCount
+                ? t("spa.giveFreeCount", { count: freeCount })
+                : freeCount
+                  ? t("spa.addToBillWithFree", {
+                      count: pendingCount - freeCount,
+                      amount: money(pendingTotal(pending)),
+                      free: freeCount,
+                    })
+                  : t("spa.addToBill", {
+                      count: pendingCount,
+                      amount: money(pendingTotal(pending)),
+                    })}
             </Button>
           </div>
         </section>
       ) : null}
 
-      <section className="space-y-0.5 text-sm">
+      <section className="shrink-0 space-y-0.5 text-sm">
         <p className="flex justify-between text-slate-300">
           <span>{billClosed ? t("spa.treatmentCharge") : t("spa.treatmentSoFar")}</span>
           <span>{money(quote?.treatmentCharge)}</span>
@@ -303,13 +346,13 @@ export function SpaBillPanel({
           <span>{money(quote?.servicesCharge)}</span>
         </p>
         {prepaid ? (
-          <p className="flex justify-between pt-1 text-base font-bold text-emerald-300">
+          <p className="flex justify-between border-t border-slate-800 pt-1.5 text-base font-semibold text-white">
             <span>{t("spa.paidSoFar")}</span>
             <span>{money(quote?.paidTotal)}</span>
           </p>
         ) : null}
         {!prepaid && discount > 0 ? (
-          <p className="flex justify-between text-teal-300">
+          <p className="flex justify-between text-slate-300">
             <span>{t("spa.discountLine", { percent: discountBps / 100 })}</span>
             <span>−{money(discount)}</span>
           </p>
@@ -326,7 +369,7 @@ export function SpaBillPanel({
       </section>
 
       {!billClosed ? (
-        <div className={`grid gap-2 ${prepaid ? "grid-cols-3" : "grid-cols-2"}`}>
+        <div className={`grid shrink-0 gap-2 ${prepaid ? "grid-cols-3" : "grid-cols-2"}`}>
           <Button variant="secondary" disabled={isBusy} onClick={onTogglePause}>
             {isPaused ? t("spa.resume") : t("spa.pause")}
           </Button>
@@ -340,7 +383,7 @@ export function SpaBillPanel({
           </Button>
         </div>
       ) : (
-        <p className="rounded border border-amber-500/60 bg-amber-950/40 p-2 text-xs text-amber-200">
+        <p className="rounded border border-slate-700 bg-slate-900 p-2 text-xs text-slate-300">
           {t("spa.billClosed")}
         </p>
       )}
