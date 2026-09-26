@@ -34,7 +34,7 @@ export function CardTapDialog({
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4">
       <form
-        className="max-h-[calc(100vh-2rem)] w-full max-w-md space-y-4 overflow-y-auto rounded-lg border border-teal-500 bg-slate-950 p-5"
+        className="max-h-[calc(100vh-2rem)] w-full max-w-md space-y-4 overflow-y-auto rounded-lg border border-slate-700 bg-slate-950 shadow-2xl shadow-black/50 p-5"
         onSubmit={submit}
       >
         <div>
@@ -65,7 +65,7 @@ export function CardTapDialog({
           </Button>
         </div>
         {error ? (
-          <p className="rounded border border-red-500/60 bg-red-950/50 p-2 text-sm text-red-200">
+          <p role="alert" className="text-sm text-red-300">
             {error}
           </p>
         ) : null}

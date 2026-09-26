@@ -100,10 +100,10 @@ export function SpaBillPanel({
         <span
           className={`shrink-0 rounded px-2 py-0.5 text-xs font-semibold ${
             billClosed
-              ? "bg-amber-900/60 text-amber-200"
+              ? "border border-amber-500/40 text-amber-200"
               : isPaused
-                ? "bg-slate-700 text-slate-200"
-                : "bg-teal-900/60 text-teal-200"
+                ? "border border-slate-700 text-slate-400"
+                : "border border-slate-600 text-slate-200"
           }`}
         >
           {billClosed
@@ -124,13 +124,13 @@ export function SpaBillPanel({
               {" "}
               <button
                 type="button"
-                className="text-teal-300 underline-offset-2 hover:underline"
+                className="text-slate-300 underline underline-offset-2 hover:text-white"
                 onClick={onChangeCard}
               >
                 {t("spa.changeCard")}
               </button>
             </span>
-            <span className={Number(wallet.balance) < 0 ? "text-amber-300" : "text-emerald-300"}>
+            <span className={Number(wallet.balance) < 0 ? "text-amber-300" : "text-slate-200"}>
               {Number(wallet.balance) < 0
                 ? t("spa.owes", { amount: money(-Number(wallet.balance)) })
                 : t("spa.balance", { amount: money(wallet.balance) })}
@@ -147,7 +147,7 @@ export function SpaBillPanel({
                 warning.level === "EXPIRED"
                   ? "text-red-300"
                   : warning.level === "WARNING"
-                    ? "text-orange-300"
+                    ? "text-amber-300"
                     : "text-slate-200"
               }`}
             >
@@ -175,7 +175,7 @@ export function SpaBillPanel({
                 <div className="min-w-0 flex-1">
                   <p className="break-words font-medium leading-snug">
                     {isFoc ? (
-                      <span className="mr-1 rounded bg-fuchsia-900/70 px-1 text-[10px] font-bold text-fuchsia-200">
+                      <span className="mr-1.5 rounded border border-slate-500 px-1 text-[10px] font-semibold tracking-wide text-slate-300">
                         {t("spa.foc")}
                       </span>
                     ) : null}
@@ -234,7 +234,7 @@ export function SpaBillPanel({
                 <span className="w-16 shrink-0 text-right font-semibold">
                   {money(total)}
                   {prepaid && !isFoc ? (
-                    <span className="ml-1 text-xs text-emerald-400">✓</span>
+                    <span className="ml-1 text-xs text-slate-500">✓</span>
                   ) : null}
                 </span>
                 {editable ? (
@@ -255,8 +255,8 @@ export function SpaBillPanel({
       </section>
 
       {pending.length ? (
-        <section className="flex shrink-0 flex-col gap-1 rounded border border-teal-700/70 bg-teal-950/20 p-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-teal-300">
+        <section className="flex shrink-0 flex-col gap-1 rounded border border-slate-700 bg-slate-900/70 p-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
             {t("spa.newItems")} · {pendingCount}
           </p>
           <div className="max-h-56 divide-y divide-slate-800/70 overflow-y-auto pr-1">
@@ -276,7 +276,7 @@ export function SpaBillPanel({
                     aria-label={t("spa.focToggle", { name: item.name })}
                     className={`h-7 shrink-0 rounded px-1.5 text-[10px] font-bold ${
                       item.foc
-                        ? "bg-fuchsia-700 text-white"
+                        ? "border border-slate-200 bg-slate-200 text-slate-900"
                         : "border border-slate-700 text-slate-400"
                     }`}
                     onClick={() => onToggleFoc(pendingKey(item))}
@@ -346,13 +346,13 @@ export function SpaBillPanel({
           <span>{money(quote?.servicesCharge)}</span>
         </p>
         {prepaid ? (
-          <p className="flex justify-between pt-1 text-base font-bold text-emerald-300">
+          <p className="flex justify-between border-t border-slate-800 pt-1.5 text-base font-semibold text-white">
             <span>{t("spa.paidSoFar")}</span>
             <span>{money(quote?.paidTotal)}</span>
           </p>
         ) : null}
         {!prepaid && discount > 0 ? (
-          <p className="flex justify-between text-teal-300">
+          <p className="flex justify-between text-slate-300">
             <span>{t("spa.discountLine", { percent: discountBps / 100 })}</span>
             <span>−{money(discount)}</span>
           </p>
@@ -383,7 +383,7 @@ export function SpaBillPanel({
           </Button>
         </div>
       ) : (
-        <p className="rounded border border-amber-500/60 bg-amber-950/40 p-2 text-xs text-amber-200">
+        <p className="rounded border border-slate-700 bg-slate-900 p-2 text-xs text-slate-300">
           {t("spa.billClosed")}
         </p>
       )}

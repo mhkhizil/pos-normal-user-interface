@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import { Toaster } from "@/components/ui/Toaster";
 import { SpaBoardPage } from "../SpaBoardPage";
 
 const mocks = vi.hoisted(() => ({
@@ -193,6 +194,7 @@ const renderPage = () =>
   render(
     <MemoryRouter initialEntries={["/spa"]}>
       <SpaBoardPage />
+      <Toaster />
     </MemoryRouter>
   );
 

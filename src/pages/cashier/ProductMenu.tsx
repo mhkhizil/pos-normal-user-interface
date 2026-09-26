@@ -210,7 +210,9 @@ export function ProductMenu({
               aria-pressed={category === name}
               onClick={() => setCategory(name)}
               className={`shrink-0 rounded-full px-3 py-1.5 text-sm font-semibold ${
-                category === name ? "bg-teal-600 text-white" : "bg-slate-800 text-slate-300"
+                category === name
+                  ? "bg-slate-100 text-slate-900"
+                  : "bg-slate-800 text-slate-300 hover:bg-slate-700"
               }`}
             >
               {name || t("cashier.productMenu.allCategories")}

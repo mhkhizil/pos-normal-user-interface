@@ -9,6 +9,7 @@ import {
 } from "@/features/permissions/usePermissions";
 import { PosActionRail } from "./PosActionRail";
 import { RoomOrderAlerts } from "./RoomOrderAlerts";
+import { Toaster } from "@/components/ui/Toaster";
 import { PosIconRail, type PosRailItem } from "./PosIconRail";
 
 const iconClass = "h-5 w-5";
@@ -330,6 +331,8 @@ export function AppShell() {
         />
       ) : null}
     </div>
+
+    <Toaster />
 
     <RoomOrderAlerts
       enabled={canAccess(["hospitality:spa-session:read"])}
