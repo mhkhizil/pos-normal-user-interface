@@ -125,7 +125,8 @@ const resolveLineCatalog = (item: Record<string, unknown>) => {
     productName:
       asHumanName(item.productName) ||
       asHumanName(item.name) ||
-      nestedName(product, ["name", "productName"]),
+      nestedName(product, ["name", "productName"]) ||
+      nestedName(variant?.product, ["name"]),
     variantName:
       asHumanName(item.variantName) ||
       nestedName(variant, ["name", "variantName", "variantSku"]),

@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   closeSession: vi.fn(),
   openSession: vi.fn(),
   fetchOrderLines: vi.fn(),
+  updateOrderLine: vi.fn(),
+  deleteOrderLine: vi.fn(),
   settleOrder: vi.fn(),
   lookupCard: vi.fn(),
   getWallet: vi.fn(),
@@ -63,6 +65,7 @@ const quote = {
 };
 
 let rooms = [room("wallet-1")];
+let lines: Record<string, unknown>[] = [];
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -104,10 +107,11 @@ vi.mock("@/core/presentation/hooks/useCashier", () => ({
 
 vi.mock("@/core/presentation/hooks/useSalesOrderManagement", () => ({
   useSalesOrderManagement: () => ({
-    orderLines: [],
+    orderLines: lines,
     fetchOrderLines: mocks.fetchOrderLines,
     addOrderLine: mocks.noop,
-    deleteOrderLine: mocks.noop,
+    updateOrderLine: mocks.updateOrderLine,
+    deleteOrderLine: mocks.deleteOrderLine,
     settleOrder: mocks.settleOrder,
   }),
 }));
@@ -156,6 +160,7 @@ describe("SpaBoardPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     rooms = [room("wallet-1")];
+    lines = [];
     mocks.fetchBoard.mockResolvedValue(rooms);
     mocks.getQuote.mockResolvedValue(quote);
     mocks.fetchOrderLines.mockResolvedValue({ lines: [] });
@@ -238,5 +243,33 @@ describe("SpaBoardPage", () => {
 
     expect(await screen.findByText("spa.tapCardForRoom")).toBeInTheDocument();
     expect(screen.getByPlaceholderText("spa.cardUid")).toBeInTheDocument();
+  });
+
+  it("fixes a wrong tap by lowering the quantity or removing the item", async () => {
+    lines = [
+      {
+        id: "line-1",
+        salesOrderId: "order-1",
+        variantId: "variant-scrub",
+        productName: "Foot Scrub",
+        quantity: "2.0000",
+        unitPrice: "6000.0000",
+        status: "PENDING",
+      },
+    ];
+    await tapCardAndOpenRoom();
+
+    expect(await screen.findByText("Foot Scrub")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "spa.decrease" }));
+    await waitFor(() =>
+      expect(mocks.updateOrderLine).toHaveBeenCalledWith("order-1", "line-1", {
+        quantity: "1.0000",
+      })
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "spa.removeLine" }));
+    await waitFor(() =>
+      expect(mocks.deleteOrderLine).toHaveBeenCalledWith("order-1", "line-1")
+    );
   });
 });

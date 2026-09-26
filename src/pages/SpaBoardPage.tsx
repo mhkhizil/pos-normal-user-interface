@@ -8,6 +8,7 @@ import {
   findMemberCardPaymentMethod,
   LOCAL_MEMBER_CARD_METHOD_ID,
 } from "@/core/application/services/PosPaymentCatalog";
+import { SalesOrderLine } from "@/core/domain/entities/Cashier";
 import { GuestCard, GuestWallet } from "@/core/domain/entities/GuestWallet";
 import { SpaRoom, SpaSession } from "@/core/domain/entities/Spa";
 import { useCardCapture } from "@/core/presentation/hooks/useCardCapture";
@@ -30,6 +31,7 @@ import {
   treatmentLengthOptions,
 } from "@/lib/spa/session";
 import { ProductMenu } from "./cashier/ProductMenu";
+import { SpaBillPanel } from "./spa/SpaBillPanel";
 import { SpaRoomTile } from "./spa/SpaRoomTile";
 
 type SpaStep = "card" | "rooms" | "sessions" | "menu" | "pay";
@@ -95,8 +97,14 @@ export function SpaBoardPage() {
     fetchProductVariants,
     fetchPaymentMethods,
   } = useCashier();
-  const { orderLines, fetchOrderLines, addOrderLine, deleteOrderLine, settleOrder } =
-    useSalesOrderManagement();
+  const {
+    orderLines,
+    fetchOrderLines,
+    addOrderLine,
+    updateOrderLine,
+    deleteOrderLine,
+    settleOrder,
+  } = useSalesOrderManagement();
   const { lookupCard, getWallet } = useGuestWalletManagement();
   const { activeLocationId, requireCashierContext, isWorkspaceReady } =
     usePosWorkspace();
@@ -130,6 +138,7 @@ export function SpaBoardPage() {
     [room?.sessions]
   );
   const billClosed = session?.sessionState === "CLOSED";
+  const liveSession = room?.sessions.find((item) => item.id === session?.id);
   const cardMethod = findMemberCardPaymentMethod(paymentMethods);
   const cashMethod = paymentMethods.find(
     (method) => String(method.kind || "").toUpperCase() === "CASH"
@@ -214,6 +223,14 @@ export function SpaBoardPage() {
       })
       .catch(() => setActionError(t("spa.errors.cardLookup")));
   }, [acceptCard, loadBill, location.state, t]);
+
+  useEffect(() => {
+    if (!session || billClosed || (step !== "menu" && step !== "pay")) return;
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") void getQuote(session.id);
+    }, 60000);
+    return () => window.clearInterval(timer);
+  }, [billClosed, getQuote, session, step]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNowMs(Date.now()), 30000);
@@ -335,7 +352,7 @@ export function SpaBoardPage() {
       lineDiscount: "0.0000",
     });
     setLastAddedLineId(line.id);
-    const nextQuote = await getQuote(session.id);
+    const nextQuote = await refreshBill(session);
     const estimate = estimateCardCharge({
       runningTotal: nextQuote.runningTotal,
       discountBps: wallet.discountBpsSnapshot,
@@ -353,6 +370,58 @@ export function SpaBoardPage() {
     await deleteOrderLine(session.salesOrderId, lastAddedLineId);
     setLastAddedLineId(null);
     await getQuote(session.id);
+  };
+
+  const refreshBill = async (target: SpaSession) => {
+    if (target.salesOrderId) {
+      await fetchOrderLines(target.salesOrderId, { page: 1, limit: 200 });
+    }
+    return getQuote(target.id);
+  };
+
+  const changeQuantity = async (line: SalesOrderLine, delta: number) => {
+    if (!session?.salesOrderId || billClosed) return;
+    const next = Number(line.quantity || 0) + delta;
+    setActionError(null);
+    try {
+      if (next <= 0) {
+        await deleteOrderLine(session.salesOrderId, line.id);
+      } else {
+        await updateOrderLine(session.salesOrderId, line.id, {
+          quantity: next.toFixed(4),
+        });
+      }
+      const nextQuote = await refreshBill(session);
+      if (
+        delta > 0 &&
+        wallet &&
+        !cardCanCover(
+          wallet,
+          estimateCardCharge({
+            runningTotal: nextQuote.runningTotal,
+            discountBps: wallet.discountBpsSnapshot,
+          })
+        )
+      ) {
+        setLastAddedLineId(null);
+        setShowInsufficient(true);
+      }
+    } catch (caught) {
+      setActionError(caught instanceof Error ? caught.message : t("spa.errors.editLine"));
+    }
+  };
+
+  const removeLine = async (line: SalesOrderLine) => {
+    if (!session?.salesOrderId || billClosed) return;
+    setActionError(null);
+    try {
+      await deleteOrderLine(session.salesOrderId, line.id);
+      if (lastAddedLineId === line.id) setLastAddedLineId(null);
+      await refreshBill(session);
+      setNotice(t("spa.lineRemoved"));
+    } catch (caught) {
+      setActionError(caught instanceof Error ? caught.message : t("spa.errors.editLine"));
+    }
   };
 
   const togglePause = async () => {
@@ -684,55 +753,24 @@ export function SpaBoardPage() {
       ) : null}
 
       {(step === "menu" || step === "pay") && session ? (
-        <div className="mt-4 grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-[19rem_minmax(0,1fr)]">
-          <aside className="space-y-3 rounded-lg border border-slate-800 p-4">
-            <p className="text-lg font-bold">{room?.roomNumber || quote?.roomNumber}</p>
-            <p className="text-emerald-300">
-              {t("spa.balance", { amount: money(wallet?.balance) })}
-            </p>
-            <div className="space-y-1 text-sm">
-              <p className="flex justify-between">
-                <span>{t("spa.treatmentCharge")}</span>
-                <span>{money(quote?.treatmentCharge)}</span>
-              </p>
-              <p className="flex justify-between">
-                <span>{t("spa.servicesCharge")}</span>
-                <span>{money(quote?.servicesCharge)}</span>
-              </p>
-              <p className="flex justify-between border-t border-slate-800 pt-1 font-semibold">
-                <span>{t("spa.runningTotal")}</span>
-                <span>{money(quote?.runningTotal)}</span>
-              </p>
-            </div>
-            <div className="max-h-48 space-y-1 overflow-y-auto">
-              {orderLines.length === 0 ? (
-                <p className="text-xs text-slate-500">{t("spa.noLines")}</p>
-              ) : (
-                orderLines.map((line) => (
-                  <div key={line.id} className="flex justify-between text-sm">
-                    <span className="truncate">
-                      {line.productName || itemNames[line.variantId] || t("spa.item")}
-                    </span>
-                    <span>× {Number(line.quantity)}</span>
-                  </div>
-                ))
-              )}
-            </div>
-            {!billClosed ? (
-              <div className="grid grid-cols-2 gap-2">
-                <Button variant="secondary" onClick={() => void togglePause()}>
-                  {session.sessionState === "PAUSED" ? t("spa.resume") : t("spa.pause")}
-                </Button>
-                <Button onClick={() => setStep(step === "menu" ? "pay" : "menu")}>
-                  {step === "menu" ? t("spa.goToPay") : t("spa.addServices")}
-                </Button>
-              </div>
-            ) : (
-              <p className="rounded border border-amber-500/60 bg-amber-950/40 p-2 text-xs text-amber-200">
-                {t("spa.billClosed")}
-              </p>
-            )}
-          </aside>
+        <div className="mt-4 grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-[22rem_minmax(0,1fr)]">
+          <SpaBillPanel
+            room={room}
+            session={liveSession || session}
+            card={card}
+            wallet={wallet}
+            quote={quote}
+            lines={orderLines}
+            itemNames={itemNames}
+            nowMs={nowMs}
+            isBusy={isLoading || isPaying}
+            billClosed={billClosed}
+            primaryLabel={step === "menu" ? t("spa.goToPay") : t("spa.addServices")}
+            onPrimary={() => setStep(step === "menu" ? "pay" : "menu")}
+            onTogglePause={() => void togglePause()}
+            onChangeQuantity={(line, delta) => void changeQuantity(line, delta)}
+            onRemoveLine={(line) => void removeLine(line)}
+          />
 
           {step === "menu" ? (
             <ProductMenu

@@ -1247,11 +1247,28 @@
       "sessionRequired": "Select a treatment and a card first.",
       "paymentUnavailable": "Guest card payment is not set up for this branch.",
       "cashUnavailable": "Cash is not set up as a payment method.",
-      "pay": "Unable to close and pay this treatment."
+      "pay": "Unable to close and pay this treatment.",
+      "editLine": "Unable to change this item on the bill."
     },
     "item": "Item",
     "tapCardForRoom": "Tap the guest card to continue with room {{room}}.",
-    "continueToRoom": "Continue to {{room}}"
+    "continueToRoom": "Continue to {{room}}",
+    "cardLabel": "Card {{uid}}",
+    "tabBalance": "Tab: {{amount}}",
+    "startedAt": "Started",
+    "timeIn": "Time in room",
+    "booked": "Booked",
+    "remaining": "Remaining",
+    "billLines": "Bill",
+    "treatmentSoFar": "Treatment so far",
+    "discountLine": "Member discount ({{percent}}%)",
+    "estimatedTotal": "Estimated total",
+    "taxNote": "Tax and tip are added at payment.",
+    "decrease": "Decrease quantity",
+    "increase": "Increase quantity",
+    "removeLine": "Remove from bill",
+    "remove": "Remove",
+    "lineRemoved": "Removed from the bill."
   },
   "statusBadge": {
     "verified": "Verified",
