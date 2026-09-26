@@ -1164,10 +1164,9 @@
     "roomNumber": "Room number",
     "roomName": "Room name",
     "capacityLabel": "Guests per room",
-    "rateVariant": "Treatment rate variant ID",
     "treatmentLengthLabel": "Treatment length (minutes)",
-    "graceMinutes": "Grace minutes",
-    "rateHint": "The rate variant's price is the price of one treatment of this length.",
+    "graceMinutes": "Free overrun (minutes)",
+    "rateHint": "Choose the treatment this room sells; its price is charged once per treatment length.",
     "treatmentMinutes": "{{count}} min",
     "capacity": "Up to {{count}} guests",
     "guestCount": "{{count}} guests",
@@ -1274,7 +1273,12 @@
     "startSummary": "{{room}} · {{minutes}} min · {{count}} guests",
     "balanceVsTotal": "Card balance {{balance}} is below the new estimated total {{total}}.",
     "addAnyway": "Add anyway, pay the rest in cash",
-    "backToBoard": "Room board"
+    "backToBoard": "Room board",
+    "treatment": "Treatment (price per session)",
+    "chooseTreatment": "Choose a treatment…",
+    "loadingTreatments": "Loading treatments…",
+    "otherProducts": "Other products",
+    "rateSummary": "Guests pay {{treatment}} for every {{minutes}} minutes. Running up to {{grace}} minutes over is free."
   },
   "statusBadge": {
     "verified": "Verified",

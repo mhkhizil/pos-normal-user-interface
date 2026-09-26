@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/Button";
@@ -178,6 +178,38 @@ export function SpaBoardPage() {
       }, {}),
     [pending]
   );
+  const treatmentOptions = useMemo(() => {
+    const spaFirst = (name?: string) => (/spa|treat|massage/i.test(name || "") ? 0 : 1);
+    return [...products]
+      .sort(
+        (left, right) =>
+          spaFirst(left.categoryName) - spaFirst(right.categoryName) ||
+          (left.categoryName || "").localeCompare(right.categoryName || "") ||
+          left.name.localeCompare(right.name)
+      )
+      .flatMap((product) => {
+        const variants = variantsByProductId[product.id] || [];
+        return variants.map((variant) => ({
+          value: variant.id,
+          group: product.categoryName || t("spa.otherProducts"),
+          label: `${product.name}${
+            variants.length > 1 && variant.variantSku ? ` · ${variant.variantSku}` : ""
+          } — ${money(Number(product.basePrice || 0) + Number(variant.priceModifier || 0))}`,
+          minutes: Number(/(\d+)\s*min/i.exec(product.name)?.[1] || 0),
+        }));
+      });
+  }, [products, t, variantsByProductId]);
+  const treatmentGroups = useMemo(
+    () =>
+      treatmentOptions.reduce<Record<string, typeof treatmentOptions>>((groups, option) => {
+        (groups[option.group] ||= []).push(option);
+        return groups;
+      }, {}),
+    [treatmentOptions]
+  );
+  const selectedTreatment = treatmentOptions.find(
+    (option) => option.value === roomForm.rateVariantId
+  );
   const visibleRooms = useMemo(
     () =>
       rooms.filter((item) => {
@@ -246,6 +278,16 @@ export function SpaBoardPage() {
     }, 60000);
     return () => window.clearInterval(timer);
   }, [billClosed, getQuote, session, step]);
+
+  const requestedVariants = useRef(new Set<string>());
+  useEffect(() => {
+    if (!showRoomForm) return;
+    for (const product of products) {
+      if (variantsByProductId[product.id] || requestedVariants.current.has(product.id)) continue;
+      requestedVariants.current.add(product.id);
+      void fetchProductVariants(product.id);
+    }
+  }, [fetchProductVariants, products, showRoomForm, variantsByProductId]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNowMs(Date.now()), 30000);
@@ -968,9 +1010,6 @@ export function SpaBoardPage() {
                 ["roomNumber", "spa.roomNumber"],
                 ["name", "spa.roomName"],
                 ["capacity", "spa.capacityLabel"],
-                ["rateVariantId", "spa.rateVariant"],
-                ["treatmentMinutes", "spa.treatmentLengthLabel"],
-                ["graceMinutes", "spa.graceMinutes"],
               ] as const
             ).map(([key, label]) => (
               <label key={key} className="text-sm">
@@ -985,7 +1024,71 @@ export function SpaBoardPage() {
                 />
               </label>
             ))}
-            <p className="col-span-2 text-xs text-slate-400">{t("spa.rateHint")}</p>
+            <label className="text-sm">
+              {t("spa.treatment")}
+              <select
+                value={roomForm.rateVariantId}
+                onChange={(event) => {
+                  const option = treatmentOptions.find(
+                    (item) => item.value === event.target.value
+                  );
+                  setRoomForm((current) => ({
+                    ...current,
+                    rateVariantId: event.target.value,
+                    treatmentMinutes: option?.minutes
+                      ? String(option.minutes)
+                      : current.treatmentMinutes,
+                  }));
+                }}
+                className="mt-1 w-full rounded border border-slate-700 bg-slate-900 px-3 py-2"
+                required
+              >
+                <option value="" disabled>
+                  {t("spa.chooseTreatment")}
+                </option>
+                {roomForm.rateVariantId && !selectedTreatment ? (
+                  <option value={roomForm.rateVariantId}>{t("spa.loadingTreatments")}</option>
+                ) : null}
+                {Object.entries(treatmentGroups).map(([group, options]) => (
+                  <optgroup key={group} label={group}>
+                    {options.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            </label>
+            {(
+              [
+                ["treatmentMinutes", "spa.treatmentLengthLabel"],
+                ["graceMinutes", "spa.graceMinutes"],
+              ] as const
+            ).map(([key, label]) => (
+              <label key={key} className="text-sm">
+                {t(label)}
+                <input
+                  type="number"
+                  min={key === "graceMinutes" ? 0 : 1}
+                  value={roomForm[key]}
+                  onChange={(event) =>
+                    setRoomForm((current) => ({ ...current, [key]: event.target.value }))
+                  }
+                  className="mt-1 w-full rounded border border-slate-700 bg-slate-900 px-3 py-2"
+                  required
+                />
+              </label>
+            ))}
+            <p className="col-span-2 text-xs text-slate-400">
+              {selectedTreatment
+                ? t("spa.rateSummary", {
+                    treatment: selectedTreatment.label,
+                    minutes: roomForm.treatmentMinutes,
+                    grace: roomForm.graceMinutes,
+                  })
+                : t("spa.rateHint")}
+            </p>
             <div className="col-span-2 flex justify-end gap-2">
               {editingRoom ? (
                 <Button

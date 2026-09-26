@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   updateOrderLine: vi.fn(),
   deleteOrderLine: vi.fn(),
   addOrderLine: vi.fn(),
+  updateRoom: vi.fn(),
   settleOrder: vi.fn(),
   lookupCard: vi.fn(),
   getWallet: vi.fn(),
@@ -88,7 +89,7 @@ vi.mock("@/core/presentation/hooks/useSpaManagement", () => ({
     error: null,
     fetchBoard: mocks.fetchBoard,
     createRoom: mocks.noop,
-    updateRoom: mocks.noop,
+    updateRoom: mocks.updateRoom,
     deleteRoom: mocks.noop,
     markRoomReady: mocks.noop,
     openSession: mocks.openSession,
@@ -321,5 +322,23 @@ describe("SpaBoardPage", () => {
       expect(mocks.deleteOrderLine).toHaveBeenCalledWith("order-1", "line-1")
     );
     expect(mocks.lookupCard).not.toHaveBeenCalled();
+  });
+
+  it("picks a room's treatment by name and price, not by id", async () => {
+    mocks.updateRoom.mockResolvedValue(room("wallet-1"));
+    renderPage();
+    fireEvent.click(screen.getByRole("button", { name: "spa.manageRoom" }));
+
+    const picker = screen.getByRole("combobox");
+    expect(screen.getByRole("option", { name: "Foot Scrub — 6,000" })).toBeInTheDocument();
+    fireEvent.change(picker, { target: { value: "variant-scrub" } });
+    fireEvent.click(screen.getByRole("button", { name: "common.save" }));
+
+    await waitFor(() =>
+      expect(mocks.updateRoom).toHaveBeenCalledWith(
+        "room-1",
+        expect.objectContaining({ rateVariantId: "variant-scrub" })
+      )
+    );
   });
 });
