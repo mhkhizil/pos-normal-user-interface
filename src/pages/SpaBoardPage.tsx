@@ -200,10 +200,10 @@ export function SpaBoardPage() {
   );
 
   useEffect(() => {
-    void fetchBoard(activeLocationId || undefined);
+    void fetchBoard();
     void fetchProducts({ page: 1, limit: 100 });
     void fetchPaymentMethods();
-  }, [activeLocationId, fetchBoard, fetchPaymentMethods, fetchProducts]);
+  }, [fetchBoard, fetchPaymentMethods, fetchProducts]);
 
   useEffect(() => {
     const returned = location.state as { cardNumber?: string } | null;
@@ -240,11 +240,11 @@ export function SpaBoardPage() {
   useEffect(() => {
     const timer = window.setInterval(() => {
       if (document.visibilityState === "visible") {
-        void fetchBoard(activeLocationId || undefined);
+        void fetchBoard();
       }
     }, 60000);
     return () => window.clearInterval(timer);
-  }, [activeLocationId, fetchBoard]);
+  }, [fetchBoard]);
 
   const handleCardLookup = async (uid = cardUid) => {
     if (!uid.trim()) return;
@@ -324,7 +324,7 @@ export function SpaBoardPage() {
         openedByPosSessionId: context.posSessionId,
         salesChannel: "POS",
       });
-      await fetchBoard(activeLocationId || undefined);
+      await fetchBoard();
       await selectSession(created);
     } catch (caught) {
       setActionError(caught instanceof Error ? caught.message : t("spa.errors.openSession"));
@@ -480,7 +480,7 @@ export function SpaBoardPage() {
       setPaid(result);
       writeResume(null);
       setWallet(await getWallet(wallet.id));
-      await fetchBoard(activeLocationId || undefined);
+      await fetchBoard();
     } catch (caught) {
       setActionError(caught instanceof Error ? caught.message : t("spa.errors.pay"));
     } finally {
@@ -521,7 +521,7 @@ export function SpaBoardPage() {
       setRoomForm(emptyRoomForm);
       setEditingRoom(null);
       setShowRoomForm(false);
-      await fetchBoard(activeLocationId || undefined);
+      await fetchBoard();
     } catch (caught) {
       setActionError(caught instanceof Error ? caught.message : t("spa.errors.saveRoom"));
     }
