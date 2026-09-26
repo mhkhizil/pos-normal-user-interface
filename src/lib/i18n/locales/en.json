@@ -1253,13 +1253,7 @@
     "item": "Item",
     "tapCardForRoom": "Tap the guest card to continue with room {{room}}.",
     "continueToRoom": "Continue to {{room}}",
-    "cardLabel": "Card {{uid}}",
     "tabBalance": "Tab: {{amount}}",
-    "startedAt": "Started",
-    "timeIn": "Time in room",
-    "booked": "Booked",
-    "remaining": "Remaining",
-    "billLines": "Bill",
     "treatmentSoFar": "Treatment so far",
     "discountLine": "Member discount ({{percent}}%)",
     "estimatedTotal": "Estimated total",
@@ -1267,8 +1261,10 @@
     "decrease": "Decrease quantity",
     "increase": "Increase quantity",
     "removeLine": "Remove from bill",
-    "remove": "Remove",
-    "lineRemoved": "Removed from the bill."
+    "lineRemoved": "Removed from the bill.",
+    "startedShort": "Since {{time}}",
+    "minutesOfBooked": "{{count}}/{{booked}} min",
+    "minutesLeft": "{{count}} min left"
   },
   "statusBadge": {
     "verified": "Verified",

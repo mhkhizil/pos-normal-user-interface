@@ -53,15 +53,27 @@ export function SpaBillPanel({
     (line) => !["VOIDED", "COMPED"].includes(String(line.status || "").toUpperCase())
   );
 
+  const timeLine = [
+    t("spa.startedShort", {
+      time: new Date(session.openedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    }),
+    session.plannedMinutes
+      ? t("spa.minutesOfBooked", { count: minutesIn, booked: session.plannedMinutes })
+      : t("spa.treatmentMinutes", { count: minutesIn }),
+    t("spa.guestCount", { count: session.guestCount }),
+  ].join(" · ");
+
   return (
-    <aside className="flex min-h-0 flex-col gap-3 overflow-y-auto rounded-lg border border-slate-800 p-4">
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <p className="text-xl font-bold">{room?.roomNumber || quote?.roomNumber}</p>
-          {room?.name ? <p className="text-sm text-slate-400">{room.name}</p> : null}
-        </div>
+    <aside className="flex min-h-0 flex-col gap-3 overflow-y-auto rounded-lg border border-slate-800 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="truncate text-lg font-bold">
+          {room?.roomNumber || quote?.roomNumber}
+          {room?.name ? (
+            <span className="ml-2 text-sm font-normal text-slate-400">{room.name}</span>
+          ) : null}
+        </p>
         <span
-          className={`rounded px-2 py-1 text-xs font-semibold ${
+          className={`shrink-0 rounded px-2 py-0.5 text-xs font-semibold ${
             billClosed
               ? "bg-amber-900/60 text-amber-200"
               : isPaused
@@ -75,60 +87,46 @@ export function SpaBillPanel({
         </span>
       </div>
 
-      {wallet ? (
-        <section className="space-y-1 rounded border border-slate-800 bg-slate-900/60 p-3 text-sm">
-          <p className="font-semibold">{wallet.guestName}</p>
-          <p className="text-slate-400">
-            {t("spa.tier", { tier: wallet.tierNameSnapshot, percent: discountBps / 100 })}
-          </p>
-          {card ? <p className="text-slate-500">{t("spa.cardLabel", { uid: card.cardUid })}</p> : null}
-          <p className={Number(wallet.balance) < 0 ? "text-amber-300" : "text-emerald-300"}>
-            {wallet.isPostpaidSnapshot
-              ? t("spa.tabBalance", { amount: money(wallet.balance) })
-              : t("spa.balance", { amount: money(wallet.balance) })}
-          </p>
-        </section>
-      ) : null}
-
-      <section className="grid grid-cols-2 gap-x-3 gap-y-1 rounded border border-slate-800 bg-slate-900/60 p-3 text-sm">
-        <span className="text-slate-400">{t("spa.startedAt")}</span>
-        <span className="text-right">{new Date(session.openedAt).toLocaleTimeString()}</span>
-        <span className="text-slate-400">{t("spa.timeIn")}</span>
-        <span className="text-right">{t("spa.treatmentMinutes", { count: minutesIn })}</span>
-        {session.plannedMinutes ? (
-          <>
-            <span className="text-slate-400">{t("spa.booked")}</span>
-            <span className="text-right">
-              {t("spa.treatmentMinutes", { count: session.plannedMinutes })}
+      <div className="space-y-0.5 text-xs text-slate-400">
+        {wallet ? (
+          <p className="flex justify-between gap-2">
+            <span className="truncate">
+              <span className="font-semibold text-slate-200">{wallet.guestName}</span>
+              {" · "}
+              {wallet.tierNameSnapshot}
+              {discountBps ? ` ${discountBps / 100}%` : ""}
+              {card ? ` · …${card.cardUid.slice(-4)}` : ""}
             </span>
-          </>
+            <span className={Number(wallet.balance) < 0 ? "text-amber-300" : "text-emerald-300"}>
+              {wallet.isPostpaidSnapshot
+                ? t("spa.tabBalance", { amount: money(wallet.balance) })
+                : money(wallet.balance)}
+            </span>
+          </p>
         ) : null}
-        {session.endsAt && !billClosed ? (
-          <>
-            <span className="text-slate-400">{t("spa.remaining")}</span>
+        <p className="flex justify-between gap-2">
+          <span className="truncate">{timeLine}</span>
+          {session.endsAt && !billClosed ? (
             <span
-              className={`text-right font-semibold ${
+              className={`shrink-0 font-semibold ${
                 warning.level === "EXPIRED"
                   ? "text-red-300"
                   : warning.level === "WARNING"
                     ? "text-orange-300"
-                    : ""
+                    : "text-slate-200"
               }`}
             >
               {warning.level === "EXPIRED"
                 ? t("spa.timeUp")
-                : t("spa.treatmentMinutes", { count: warning.remainingMinutes })}
+                : t("spa.minutesLeft", { count: warning.remainingMinutes })}
             </span>
-          </>
-        ) : null}
-        <span className="text-slate-400">{t("spa.guestCountLabel")}</span>
-        <span className="text-right">{session.guestCount}</span>
-      </section>
+          ) : null}
+        </p>
+      </div>
 
-      <section className="space-y-2">
-        <p className="text-sm font-semibold text-slate-300">{t("spa.billLines")}</p>
+      <section className="min-h-0 flex-1 divide-y divide-slate-800 border-y border-slate-800">
         {visibleLines.length === 0 ? (
-          <p className="text-xs text-slate-500">{t("spa.noLines")}</p>
+          <p className="py-3 text-xs text-slate-500">{t("spa.noLines")}</p>
         ) : (
           visibleLines.map((line) => {
             const quantity = Number(line.quantity || 0);
@@ -137,63 +135,68 @@ export function SpaBillPanel({
             const isTreatment = line.variantId === room?.rateVariantId;
             const editable = !billClosed && !isTreatment;
             return (
-              <div key={line.id} className="rounded border border-slate-800 p-2 text-sm">
-                <div className="flex items-start justify-between gap-2">
-                  <span className="font-medium">
+              <div key={line.id} className="flex items-center gap-2 py-2 text-sm">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium">
                     {isTreatment
                       ? t("spa.treatmentCharge")
                       : line.productName || itemNames[line.variantId] || t("spa.item")}
-                  </span>
-                  <span className="font-semibold">{money(total)}</span>
+                  </p>
+                  <p className="text-xs text-slate-500">{money(unitPrice)}</p>
                 </div>
-                <div className="mt-1 flex items-center justify-between gap-2 text-xs text-slate-400">
-                  <span>
-                    {money(unitPrice)} × {Number(quantity.toFixed(4))}
-                  </span>
-                  {editable ? (
-                    <span className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        aria-label={t("spa.decrease")}
-                        className="h-7 w-7 rounded bg-slate-800 text-base text-white disabled:opacity-40"
-                        disabled={isBusy}
-                        onClick={() => onChangeQuantity(line, -1)}
-                      >
-                        −
-                      </button>
-                      <button
-                        type="button"
-                        aria-label={t("spa.increase")}
-                        className="h-7 w-7 rounded bg-slate-800 text-base text-white disabled:opacity-40"
-                        disabled={isBusy}
-                        onClick={() => onChangeQuantity(line, 1)}
-                      >
-                        +
-                      </button>
-                      <button
-                        type="button"
-                        aria-label={t("spa.removeLine")}
-                        className="h-7 rounded px-2 text-red-300 hover:bg-red-950/60 disabled:opacity-40"
-                        disabled={isBusy}
-                        onClick={() => onRemoveLine(line)}
-                      >
-                        {t("spa.remove")}
-                      </button>
+                {editable ? (
+                  <div className="flex shrink-0 items-center rounded bg-slate-800">
+                    <button
+                      type="button"
+                      aria-label={t("spa.decrease")}
+                      className="h-7 w-7 text-base disabled:opacity-40"
+                      disabled={isBusy}
+                      onClick={() => onChangeQuantity(line, -1)}
+                    >
+                      −
+                    </button>
+                    <span className="w-6 text-center text-xs font-semibold">
+                      {Number(quantity.toFixed(4))}
                     </span>
-                  ) : null}
-                </div>
+                    <button
+                      type="button"
+                      aria-label={t("spa.increase")}
+                      className="h-7 w-7 text-base disabled:opacity-40"
+                      disabled={isBusy}
+                      onClick={() => onChangeQuantity(line, 1)}
+                    >
+                      +
+                    </button>
+                  </div>
+                ) : (
+                  <span className="shrink-0 text-xs text-slate-400">
+                    × {Number(quantity.toFixed(4))}
+                  </span>
+                )}
+                <span className="w-16 shrink-0 text-right font-semibold">{money(total)}</span>
+                {editable ? (
+                  <button
+                    type="button"
+                    aria-label={t("spa.removeLine")}
+                    className="h-7 w-6 shrink-0 rounded text-slate-500 hover:bg-red-950/60 hover:text-red-300 disabled:opacity-40"
+                    disabled={isBusy}
+                    onClick={() => onRemoveLine(line)}
+                  >
+                    ✕
+                  </button>
+                ) : null}
               </div>
             );
           })
         )}
       </section>
 
-      <section className="space-y-1 border-t border-slate-800 pt-2 text-sm">
-        <p className="flex justify-between">
+      <section className="space-y-0.5 text-sm">
+        <p className="flex justify-between text-slate-300">
           <span>{billClosed ? t("spa.treatmentCharge") : t("spa.treatmentSoFar")}</span>
           <span>{money(quote?.treatmentCharge)}</span>
         </p>
-        <p className="flex justify-between">
+        <p className="flex justify-between text-slate-300">
           <span>{t("spa.servicesCharge")}</span>
           <span>{money(quote?.servicesCharge)}</span>
         </p>
@@ -203,17 +206,15 @@ export function SpaBillPanel({
             <span>−{money(discount)}</span>
           </p>
         ) : null}
-        <p className="flex justify-between text-base font-bold">
+        <p className="flex justify-between pt-1 text-base font-bold">
           <span>{t("spa.estimatedTotal")}</span>
-          <span>
-            {money(estimateCardCharge({ runningTotal, discountBps }))}
-          </span>
+          <span>{money(estimateCardCharge({ runningTotal, discountBps }))}</span>
         </p>
-        <p className="text-xs text-slate-500">{t("spa.taxNote")}</p>
+        <p className="text-[11px] text-slate-500">{t("spa.taxNote")}</p>
       </section>
 
       {!billClosed ? (
-        <div className="mt-auto grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-2">
           <Button variant="secondary" disabled={isBusy} onClick={onTogglePause}>
             {isPaused ? t("spa.resume") : t("spa.pause")}
           </Button>

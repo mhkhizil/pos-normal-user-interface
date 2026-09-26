@@ -1253,13 +1253,7 @@
     "item": "ပစ္စည်း",
     "tapCardForRoom": "အခန်း {{room}} ဆက်လုပ်ရန် ဧည့်သည်ကတ်ကို ထိပါ။",
     "continueToRoom": "{{room}} သို့ ဆက်သွားမည်",
-    "cardLabel": "ကတ် {{uid}}",
     "tabBalance": "အကြွေးစာရင်း: {{amount}}",
-    "startedAt": "စတင်ချိန်",
-    "timeIn": "အခန်းတွင်ရှိချိန်",
-    "booked": "ကြိုတင်သတ်မှတ်ချိန်",
-    "remaining": "ကျန်ချိန်",
-    "billLines": "ဘေလ်",
     "treatmentSoFar": "ယခုအထိ ကုသမှု",
     "discountLine": "အဖွဲ့ဝင်လျှော့စျေး ({{percent}}%)",
     "estimatedTotal": "ခန့်မှန်းစုစုပေါင်း",
@@ -1267,8 +1261,10 @@
     "decrease": "အရေအတွက် လျှော့မည်",
     "increase": "အရေအတွက် တိုးမည်",
     "removeLine": "ဘေလ်မှ ဖယ်မည်",
-    "remove": "ဖယ်မည်",
-    "lineRemoved": "ဘေလ်မှ ဖယ်ပြီး။"
+    "lineRemoved": "ဘေလ်မှ ဖယ်ပြီး။",
+    "startedShort": "{{time}} မှစ၍",
+    "minutesOfBooked": "{{count}}/{{booked}} မိနစ်",
+    "minutesLeft": "{{count}} မိနစ် ကျန်"
   },
   "statusBadge": {
     "verified": "အတည်ပြုပြီး",
