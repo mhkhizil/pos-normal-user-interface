@@ -24,6 +24,8 @@ interface PosWorkspaceSetupModalProps {
   onOpenSession: () => void;
   onShiftClosed: () => void;
   onContinue: () => void;
+  /** Escape hatch: sign out so a stuck user is never trapped in this dialog. */
+  onLogout?: () => void;
 }
 
 export function PosWorkspaceSetupModal({
@@ -42,6 +44,7 @@ export function PosWorkspaceSetupModal({
   onOpenSession,
   onShiftClosed,
   onContinue,
+  onLogout,
 }: PosWorkspaceSetupModalProps) {
   const { t } = useTranslation();
   const [closingId, setClosingId] = useState<string | null>(null);
@@ -183,6 +186,16 @@ export function PosWorkspaceSetupModal({
               {t("cashier.pos.continue")}
             </Button>
           </div>
+
+          {onLogout ? (
+            <button
+              type="button"
+              onClick={onLogout}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              {t("shell.logout")}
+            </button>
+          ) : null}
         </div>
       </div>
       {closingId ? (

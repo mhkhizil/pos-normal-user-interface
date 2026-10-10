@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Navigate, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/core/presentation/hooks/useAuth";
+import { APP_VERSION } from "@/lib/appVersion";
 
 const inputClassName =
   "w-full rounded-lg border border-white/10 bg-black px-3 py-2.5 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-[#3ec4ff] focus:ring-2 focus:ring-[#3ec4ff]/30";
@@ -152,6 +153,10 @@ export function LoginPage() {
             {isLoading ? t("login.submitting") : t("login.submit")}
           </Button>
         </form>
+
+        <p className="mt-5 text-center text-xs text-white/35">
+          {t("shell.appVersion", { version: APP_VERSION })}
+        </p>
       </div>
     </section>
   );

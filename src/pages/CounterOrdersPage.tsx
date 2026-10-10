@@ -38,7 +38,7 @@ export function CounterOrdersPage() {
   const { t } = useTranslation();
   const { user } = useAuth();
   const { activePosRegisterId, activeLocationId } = usePosWorkspace();
-  const { listStations } = useKdsStationManagement();
+  const { stations: kdsStations, listStations } = useKdsStationManagement();
   const { error, listKdsTickets, getKdsTicketById } = useCashier();
   const printerConnection = usePrinterConnection(
     String(user?.tenantId || ""),
@@ -80,6 +80,36 @@ export function CounterOrdersPage() {
     });
     return Array.from(ids);
   }, [tickets]);
+
+  // Tickets only carry the station id, so load the KDS stations to show their names.
+  useEffect(() => {
+    void listStations({
+      page: 1,
+      limit: 100,
+      ...(activeLocationId ? { locationId: activeLocationId } : {}),
+    }).catch(() => undefined);
+  }, [activeLocationId, listStations]);
+
+  const stationNameById = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const station of kdsStations) map[station.id] = station.name;
+    // The ticket list can embed the station too; use it when the fetch is empty.
+    for (const ticket of tickets) {
+      const id = ticket.stationId || ticket.station?.id;
+      if (id && ticket.station?.name && !map[id]) map[id] = ticket.station.name;
+    }
+    return map;
+  }, [kdsStations, tickets]);
+
+  /** The station name, falling back to the ticket's embedded name, then a short id. */
+  const stationLabel = (stationId?: string, embeddedName?: string) => {
+    if (!stationId) return t("counterOrders.noStation");
+    return (
+      embeddedName ||
+      stationNameById[stationId] ||
+      `${t("counterOrders.station")} ${shortStation(stationId)}`
+    );
+  };
 
   const unlinkedCount = tickets.filter((ticket) => !ticket.stationId).length;
 
@@ -188,7 +218,7 @@ export function CounterOrdersPage() {
               ].join(" ")}
             >
               <span className="truncate">
-                {t("counterOrders.station")} {shortStation(id)}
+                {stationLabel(id)}
               </span>
             </button>
           ))}
@@ -219,10 +249,10 @@ export function CounterOrdersPage() {
                       {ticket.courseType ? ` | ${ticket.courseType}` : ""}
                     </p>
                     <p className="truncate text-xs text-slate-500">
-                      {ticket.station?.name ||
-                        (ticket.stationId
-                          ? `${t("counterOrders.station")} ${shortStation(ticket.stationId)}`
-                          : t("counterOrders.noStation"))}
+                      {stationLabel(
+                        ticket.stationId || ticket.station?.id,
+                        ticket.station?.name
+                      )}
                     </p>
                     {ticket.lines?.length ? (
                       <p className="truncate text-xs text-slate-700">
@@ -306,10 +336,10 @@ export function CounterOrdersPage() {
                   {detailTicket.ticketNumber || detailTicket.id}
                 </p>
                 <p className="text-xs text-slate-500">
-                  {detailTicket.station?.name ||
-                    (detailTicket.stationId
-                      ? `${t("counterOrders.station")} ${shortStation(detailTicket.stationId)}`
-                      : t("counterOrders.noStation"))}
+                  {stationLabel(
+                    detailTicket.stationId || detailTicket.station?.id,
+                    detailTicket.station?.name
+                  )}
                   {detailTicket.courseType ? ` · ${detailTicket.courseType}` : ""}
                 </p>
               </div>

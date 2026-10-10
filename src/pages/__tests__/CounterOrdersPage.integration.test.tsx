@@ -67,6 +67,14 @@ vi.mock("@/core/presentation/hooks/usePosWorkspace", () => ({
 
 vi.mock("@/core/presentation/hooks/useKdsStationManagement", () => ({
   useKdsStationManagement: () => ({
+    stations: [
+      {
+        id: "station-kitchen",
+        name: "Kitchen",
+        printerIds: ["printer-1"],
+        routingRules: { categoryIds: ["snack"] },
+      },
+    ],
     listStations: vi.fn().mockResolvedValue({
       stations: [
         {

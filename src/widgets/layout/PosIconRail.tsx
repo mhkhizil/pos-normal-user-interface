@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { NavLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { APP_VERSION } from "@/lib/appVersion";
 
 export interface PosRailItem {
   to: string;
@@ -290,6 +291,12 @@ export function PosIconRail({
         ].join(" ")}
       >
         {userName}
+      </span>
+      <span
+        className="mt-1 max-w-full truncate text-center text-[10px] text-white/40"
+        title={t("shell.appVersion", { version: APP_VERSION })}
+      >
+        {t("shell.appVersion", { version: APP_VERSION })}
       </span>
     </aside>
   );

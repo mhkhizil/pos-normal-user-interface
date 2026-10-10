@@ -48,7 +48,7 @@ const PosWorkspaceContext = createContext<PosWorkspaceContextType | undefined>(
 
 export function PosWorkspaceProvider({ children }: { children: ReactNode }) {
   const { t } = useTranslation();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const {
     inventoryLocations,
     activeLocationId,
@@ -500,6 +500,7 @@ export function PosWorkspaceProvider({ children }: { children: ReactNode }) {
         onOpenSession={() => void handleOpenSession()}
         onShiftClosed={() => void handleShiftClosedInSetup()}
         onContinue={handleContinue}
+        onLogout={() => void logout()}
       />
     </PosWorkspaceContext.Provider>
   );
