@@ -185,8 +185,8 @@ describe("a KTV bill", () => {
       lines: [],
       total: "1000",
     }).join("\n");
-    expect(text).toMatch(/Service\s+VIP Lounge/);
-    expect(text).toMatch(/Room\s+K3/);
+    expect(text).toMatch(/Service\s+KTV/);
+    expect(text).toMatch(/KTV\s+K3/);
     expect(text).not.toContain("Private VIP Lounge");
   });
 

@@ -104,7 +104,7 @@ const sampleTime = (hours: number, minutes: number) => {
 
 const SAMPLE_LINES: PrintLine[] = [
   {
-    name: "VIP Lounge 2 hours",
+    name: "KTV 2 hours",
     quantity: "2",
     unitPrice: "25000",
     categoryName: "Rooms",
@@ -178,8 +178,8 @@ function TemplatePreview({
       ? kitchenSlipPreview({
           title: "0012",
           stationName: "Kitchen",
-          place: "VIP Lounge K3",
-          placeDetail: "VIP Lounge - 4 guests",
+          place: "KTV K3",
+          placeDetail: "KTV - 4 guests",
           orderRef: "SO-R01-0012",
           firedAt: sampleTime(14, 5),
           sentBy: "Aung Aung",
