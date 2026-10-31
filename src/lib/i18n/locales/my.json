@@ -41,7 +41,7 @@
     "salesSummaryTitle": "POS အရောင်းအနှစ်ချုပ်",
     "cashierTitle": "ငွေကောက်",
     "cashierMeta": "POS မုဒ်",
-    "ktvTitle": "VIP Lounge",
+    "ktvTitle": "KTV",
     "spaTitle": "SPA အခန်းများ",
     "counterOrdersTitle": "ကောင်တာ အော်ဒါများ",
     "salesOrdersTitle": "အရောင်းအော်ဒါများ",
@@ -187,7 +187,7 @@
   },
   "salesSummary": {
     "title": "POS အရောင်းအနှစ်ချုပ်",
-    "description": "POS စုစုပေါင်း၊ ဘေလ်များ၊ ဘားအမျိုးအစား၊ SPA မီနူးနှင့် VIP Lounge ဆက်ရှင်များ။",
+    "description": "POS စုစုပေါင်း၊ ဘေလ်များ၊ ဘားအမျိုးအစား၊ SPA မီနူးနှင့် KTV ဆက်ရှင်များ။",
     "posType": "POS အမျိုးအစား",
     "searchBills": "ဘေလ်၊ အခန်း သို့မဟုတ် ဧည့်သည် ရှာရန်",
     "empty": "ဤကာလတွင် အရောင်းမရှိပါ။",
@@ -228,11 +228,11 @@
       "posBills": "POS ဘေလ်များ",
       "bar": "ဘား အမျိုးအစားအလိုက်",
       "spaMenu": "SPA မီနူးအလိုက်",
-      "ktv": "VIP Lounge ဆက်ရှင်များ"
+      "ktv": "KTV ဆက်ရှင်များ"
     },
     "posTypes": {
       "SPA": "SPA ဝန်ဆောင်မှု",
-      "KTV": "VIP Lounge",
+      "KTV": "KTV",
       "BAR": "ဘားကောင်တာ"
     }
   },
@@ -1413,9 +1413,9 @@
     "goToDashboard": "ပင်မစာမျက်နှာသို့"
   },
   "ktv": {
-    "boardTitle": "VIP Lounge ဘုတ်",
+    "boardTitle": "KTV ဘုတ်",
     "boardDescription": "အခန်းဖွင့်ခြင်း၊ ဆက်ရှင်စောင့်ကြည့်ခြင်းနှင့် အခန်းအဆင်သင့်ဖြစ်မှုကို စီမံပါ။",
-    "loading": "VIP Lounge များ ဖွင့်နေသည်...",
+    "loading": "KTV များ ဖွင့်နေသည်...",
     "addRoom": "အခန်းထည့်မည်",
     "editRoom": "အခန်းပြင်မည်",
     "manageRoom": "အခန်းစီမံမည်",
@@ -1485,11 +1485,11 @@
       "walletUnavailable": "ဤဧည့်သည်ပိုက်ဆံအိတ်ကို အသုံးမပြုနိုင်ပါ။",
       "wrongSessionCard": "ဤကတ်သည် ရွေးထားသောအခန်းဆက်ရှင်နှင့် မသက်ဆိုင်ပါ။",
       "openSession": "အခန်းဆက်ရှင် ဖွင့်၍မရပါ။",
-      "createRoom": "VIP Lounge ဖန်တီး၍မရပါ။",
+      "createRoom": "KTV ဖန်တီး၍မရပါ။",
       "sessionRequired": "အရင် လုပ်ဆောင်နေသောအခန်းဆက်ရှင်နှင့် ကတ်ကို ရွေးပါ။",
       "paymentUnavailable": "ဤဆိုင်ခွဲတွင် ဧည့်သည်ကတ်ပေးချေမှု မပြင်ဆင်ထားပါ။",
       "checkout": "အခန်းဆက်ရှင်ပိတ်၍ ငွေပေးချေမရပါ။",
-      "roomNotFound": "VIP Lounge မတွေ့ပါ။",
+      "roomNotFound": "KTV မတွေ့ပါ။",
       "noActiveSession": "ဤအခန်းတွင် လုပ်ဆောင်နေသောဆက်ရှင် မရှိပါ။"
     }
   },
@@ -1823,7 +1823,7 @@
     "ready": "အဆင်သင့်",
     "table": "စားပွဲ {{number}}",
     "spaRoom": "SPA အခန်း {{number}}",
-    "ktvRoom": "VIP Lounge {{number}}",
+    "ktvRoom": "KTV {{number}}",
     "counter": "ကောင်တာ",
     "pickup": "ယူမည့်နံပါတ် {{number}}",
     "guests": "ဧည့်သည် {{count}} ဦး",
@@ -1853,7 +1853,7 @@
     "started": "တက်ဘလက်မှ စတင်ပြီး"
   },
   "ktvPos": {
-    "boardTitle": "VIP Lounge ဘုတ်",
+    "boardTitle": "KTV ဘုတ်",
     "sessions": "နာရီ",
     "newSession": "{{room}} တွင် ဧည့်သည်အသစ်",
     "sessionsSummary": "စုစုပေါင်း {{minutes}} မိနစ်",
@@ -1880,7 +1880,7 @@
     "minutesOfBooked": "{{count}}/{{booked}} မိနစ် ({{sessions}} နာရီ)",
     "treatmentMinutes": "{{count}} မိနစ်",
     "sessionOption": "{{time}} မှစ၍ · ဧည့်သည် {{count}} ဦး",
-    "noRooms": "VIP Lounge မရှိသေးပါ။ စတင်ရန် VIP Lounge ထည့်ပါ။",
+    "noRooms": "KTV မရှိသေးပါ။ စတင်ရန် KTV ထည့်ပါ။",
     "errors": {
       "openSession": "အခန်း စတင်၍ မရပါ",
       "sessionRequired": "အခန်းကို အရင်စတင်ပါ",
@@ -1897,7 +1897,7 @@
       "active": "အသုံးပြုနေသည်"
     },
     "billClosed": "အခန်း ပိတ်ပြီး။ ဘေလ်သည် ငွေပေးချေရန် စောင့်နေသည်။",
-    "billPaid": "ငွေပေးချေပြီး။ နောက်ဧည့်သည်အတွက် VIP Lounge အားပါပြီ။",
+    "billPaid": "ငွေပေးချေပြီး။ နောက်ဧည့်သည်အတွက် KTV အားပါပြီ။",
     "payTitle": "အခန်းပိတ်ပြီး ငွေပေးချေမည်",
     "steps": {
       "sessions": "နာရီ ရွေးမည်",

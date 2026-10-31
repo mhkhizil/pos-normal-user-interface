@@ -47,7 +47,7 @@ describe("the kitchen slip", () => {
       kdsTicketPlace(
         ticket({ place: { kind: "KTV_ROOM", number: "K3", name: null, guestCount: null } })
       )
-    ).toBe("VIP Lounge K3");
+    ).toBe("KTV K3");
     expect(
       kdsTicketPlace(
         ticket({ place: { kind: "TABLE", number: "T12", name: null, guestCount: 4 } })
@@ -69,8 +69,8 @@ describe("the kitchen slip", () => {
     });
     expect(kdsTicketPlace(ktvRoom, "Golden Club")).toBe("Golden Club 101");
     // Until the company loads, the slip still says where the food goes.
-    expect(kdsTicketPlace(ktvRoom)).toBe("VIP Lounge 101");
-    expect(kdsTicketPlace(ktvRoom, "   ")).toBe("VIP Lounge 101");
+    expect(kdsTicketPlace(ktvRoom)).toBe("KTV 101");
+    expect(kdsTicketPlace(ktvRoom, "   ")).toBe("KTV 101");
   });
 
   it("says who sent it", () => {
@@ -93,7 +93,7 @@ describe("the kitchen slip", () => {
         sentBy: { name: "Aung Aung", loginId: "SHW0001" },
       })
     );
-    expect(text).toContain("VIP Lounge K3");
+    expect(text).toContain("KTV K3");
     expect(text).toContain("Sent by Aung Aung (ID: SHW0001)");
     expect(text).toContain("Order SO-0012");
     expect(text).toContain("1 x FRIED RICE");

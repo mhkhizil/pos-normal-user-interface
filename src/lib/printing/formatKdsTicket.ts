@@ -600,7 +600,7 @@ function kitchenLayout(slip: KitchenSlip): Layout {
 /** How a room service reads on paper, and what its place is called. */
 const ROOM_SERVICES: Record<string, { name: string; place: string }> = {
   SPA: { name: "SPA", place: "Room" },
-  KTV: { name: "VIP Lounge", place: "Room" },
+  KTV: { name: "KTV", place: "KTV" },
 };
 
 function receiptLayout(receipt: SaleReceipt): Layout {
@@ -819,7 +819,7 @@ export function kdsTicketPlace(
   // A KTV room goes by the tenant's own name; only fall back to a generic one
   // when the company has not loaded.
   if (place?.kind === "KTV_ROOM" && place.number) {
-    return `${tenantName?.trim() || "VIP Lounge"} ${place.number}`;
+    return `${tenantName?.trim() || "KTV"} ${place.number}`;
   }
   if (ticket.pickupNumber) return `Pickup ${ticket.pickupNumber}`;
   if (place?.kind === "COUNTER") return "Counter";

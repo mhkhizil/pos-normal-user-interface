@@ -141,7 +141,7 @@ describe("PrintTemplateSettingsPanel", () => {
       screen.getByRole("button", { name: /settings.printTemplate.placeKdsHint/ })
     );
     const preview = screen.getByTestId("slip-preview");
-    expect(preview).toHaveTextContent("VIP Lounge K3");
+    expect(preview).toHaveTextContent("KTV K3");
     expect(preview).toHaveTextContent("FRIED RICE");
     expect(preview).not.toHaveTextContent("53,675");
   });
