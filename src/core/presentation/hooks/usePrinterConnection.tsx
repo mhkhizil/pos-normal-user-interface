@@ -30,6 +30,7 @@ import {
   StationRoute,
 } from "@/lib/printing/routeKitchenPrint";
 import { printLogoFor } from "@/lib/printing/printLogo";
+import { previewBeforePrint } from "@/lib/printing/printPreview";
 import { checkoutCopies, copySlip } from "@/lib/printing/receiptCopies";
 import { printPlaceToTemplateType } from "@/lib/printing/selectPrintTemplate";
 import {
@@ -350,20 +351,12 @@ export function usePrinterConnection(
         return local.length ? local : backendTargets(place);
       };
 
+      let previewed = false;
       const printOne = async (slip: SaleReceipt) => {
         const place = slip.place || "CHECKOUT";
         let targets = await targetsFor(place);
         // The office copy goes to the till's own printer when there is no finance one.
         if (!targets.length && slip.copy === "FINANCE") targets = await targetsFor("CHECKOUT");
-        if (!targets.length) {
-          throw new Error(
-            place === "FINANCE"
-              ? "No finance printer is connected"
-              : place === "KDS"
-                ? "No KDS printer is connected"
-                : "No checkout printer is connected"
-          );
-        }
         const resolved = slip.template ? undefined : await templateFor(place, slip.templateType);
         const template = slip.template || resolved?.settings;
         const paperWidth = slip.paperWidth || resolved?.paperWidth;
@@ -380,6 +373,20 @@ export function usePrinterConnection(
               ? await printLogoFor(company.logoUrl, paperWidth)
               : null;
         const ready = { ...slip, place, template, paperWidth, company, currency, logo };
+        // The guest's copy is the one shown; the copies after it follow the answer.
+        if (!previewed) {
+          previewed = true;
+          if (!(await previewBeforePrint(ready))) return null;
+        }
+        if (!targets.length) {
+          throw new Error(
+            place === "FINANCE"
+              ? "No finance printer is connected"
+              : place === "KDS"
+                ? "No KDS printer is connected"
+                : "No checkout printer is connected"
+          );
+        }
         const failures: string[] = [];
         for (const target of targets) {
           try {
@@ -403,7 +410,7 @@ export function usePrinterConnection(
       const template = receipt.template || resolved?.settings;
       const sale = { ...receipt, template, paperWidth: receipt.paperWidth || resolved?.paperWidth };
       for (const copy of checkoutCopies(template)) {
-        await printOne(copySlip(sale, copy));
+        if (!(await printOne(copySlip(sale, copy)))) return;
       }
     },
     [backendTargets, currentBindings, registerId, templateFor, tenantId]

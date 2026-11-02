@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/Button";
@@ -16,6 +16,11 @@ import { KdsStationSettingsPanel } from "./settings/KdsStationSettingsPanel";
 import { ShiftSettingsPanel } from "./settings/ShiftSettingsPanel";
 import { CloseShiftDialog } from "@/components/shift/CloseShiftDialog";
 import { usePosWorkspace } from "@/core/presentation/hooks/usePosWorkspace";
+import {
+  printPreviewOn,
+  setPrintPreviewOn,
+  subscribeToPrintPreview,
+} from "@/lib/printing/printPreview";
 
 type SettingsTab =
   | "cashier"
@@ -68,6 +73,7 @@ export function PosSettingsPage() {
   const { user, logout } = useAuth();
   const { currentShift, activePosSessionId, shiftClosed } = usePosWorkspace();
   const [endingShift, setEndingShift] = useState(false);
+  const previewOn = useSyncExternalStore(subscribeToPrintPreview, printPreviewOn);
   const cashierShiftOpen = Boolean(activePosSessionId && currentShift?.shiftRule !== "DAILY");
 
   const activeTab = tabIds.includes((tab || "") as SettingsTab)
@@ -240,7 +246,15 @@ export function PosSettingsPage() {
         {activeTab === "devices" ? <DevicesSettingsPanel /> : null}
 
         {activeTab === "printer" ? (
-          <div className="mx-auto max-w-5xl">
+          <div className="mx-auto max-w-5xl space-y-4">
+            <SettingsSection title={t("settings.printer.title")}>
+              <SettingsToggleRow
+                title={t("settings.printer.previewTitle")}
+                description={t("settings.printer.previewDescription")}
+                checked={previewOn}
+                onChange={setPrintPreviewOn}
+              />
+            </SettingsSection>
             <PrinterSettingsPanel />
           </div>
         ) : null}

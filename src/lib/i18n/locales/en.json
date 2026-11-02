@@ -3,7 +3,11 @@
     "startTime": "Start time",
     "endTime": "End time",
     "printFailed": "Receipt print failed",
-    "tip": "Tip"
+    "tip": "Tip",
+    "preview": {
+      "title": "Print preview",
+      "print": "Print"
+    }
   },
   "common": {
     "refresh": "Refresh",
@@ -666,7 +670,9 @@
       "detach": "Detach",
       "categoryAttached": "Category routed to this printer.",
       "categoryDetached": "Category removed from this printer.",
-      "categoryFailed": "Unable to update category routing."
+      "categoryFailed": "Unable to update category routing.",
+      "previewTitle": "Preview before printing",
+      "previewDescription": "Show each receipt on screen first, then press Print. Only on this device."
     },
     "printTemplate": {
       "sizeBig": "Big (tall and wide)",

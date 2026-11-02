@@ -11,6 +11,7 @@ import {
 import { PosActionRail } from "./PosActionRail";
 import { RoomOrderAlerts } from "./RoomOrderAlerts";
 import { Toaster } from "@/components/ui/Toaster";
+import { PrintPreviewDialog } from "@/components/printing/PrintPreviewDialog";
 import { ShiftDayBanner } from "@/components/shift/ShiftDayBanner";
 import type { PosKind } from "@/core/domain/entities/Shift";
 import { hiddenPosScreen } from "@/lib/pos/posScreens";
@@ -580,6 +581,8 @@ export function AppShell() {
     ) : null}
 
     <Toaster />
+
+    <PrintPreviewDialog />
 
     <ShiftDayBanner />
 
