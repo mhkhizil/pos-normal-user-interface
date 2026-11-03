@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/Button";
 import { formatPosMoney } from "@/lib/pos/orderListDisplay";
 import type { Hostess } from "@/core/domain/entities/Hostess";
 import { LadyPicker } from "../ktv/LadyPicker";
+import { ItemNoteField } from "@/components/notes/ItemNoteField";
+import { cleanNote } from "@/lib/notes/itemNote";
 
 export interface LineEdit {
   /** How many of the item the price and FOC are for; the rest stay as they are. */
@@ -12,6 +14,8 @@ export interface LineEdit {
   foc: boolean;
   /** Who ordered it: a hostess's id, or null for the customer. Left out when not asked. */
   orderedBy?: string | null;
+  /** The note for the kitchen or bar; null clears it. Left out when not asked. */
+  note?: string | null;
 }
 
 interface LineEditDialogProps {
@@ -31,6 +35,9 @@ interface LineEditDialogProps {
   allLadies?: Hostess[];
   roomNumber?: string;
   orderedBy?: string;
+  note?: string;
+  /** The shop's quick notes; left out, the dialog does not ask for a note. */
+  quickNotes?: string[];
   /** Room time and packages stay on the bill; only their price and FOC change. */
   canRemove?: boolean;
   isBusy?: boolean;
@@ -57,6 +64,8 @@ export function LineEditDialog({
   allLadies,
   roomNumber,
   orderedBy,
+  note,
+  quickNotes,
   canRemove = true,
   isBusy = false,
   onSave,
@@ -83,6 +92,7 @@ export function LineEditDialog({
     extra(picked?.id, picked?.name);
     return options;
   })();
+  const [noteText, setNoteText] = useState(note ?? "");
   // Part of an item can be priced on its own only in whole units.
   const canSplit = quantity > 1 && Number.isInteger(quantity);
   const [count, setCount] = useState(quantity);
@@ -104,6 +114,9 @@ export function LineEditDialog({
       unitPrice: value,
       foc,
       ...(canOrder ? { orderedBy: orderer } : {}),
+      ...(quickNotes && cleanNote(noteText) !== cleanNote(note)
+        ? { note: cleanNote(noteText) ?? null }
+        : {}),
     });
   };
 
@@ -247,6 +260,10 @@ export function LineEditDialog({
               ) : null}
             </div>
           </div>
+        ) : null}
+
+        {quickNotes ? (
+          <ItemNoteField value={noteText} onChange={setNoteText} quickNotes={quickNotes} />
         ) : null}
 
         <div className="space-y-1 border-t border-slate-800 pt-3 text-sm">

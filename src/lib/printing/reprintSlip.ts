@@ -58,6 +58,7 @@ const merged = (lines: (PrintLine & { variantId: string })[]) => {
       line.modifiers,
       line.modifierPrices,
       line.promotion,
+      line.remarks,
     ]);
     const existing = rows.get(key);
     if (!existing) {
@@ -151,6 +152,7 @@ export function reprintSlip(input: ReprintInput): SaleReceipt {
           unitPrice: line.unitPrice?.trim() || undefined,
           modifiers: modifiers.names,
           modifierPrices: modifiers.prices,
+          ...(line.note ? { remarks: line.note } : {}),
         };
       }),
       amounts: tipRow ?? [],
@@ -182,6 +184,7 @@ export function reprintSlip(input: ReprintInput): SaleReceipt {
       categoryName: line.categoryName,
       modifiers: modifiers.names,
       modifierPrices: modifiers.prices,
+      ...(line.note ? { remarks: line.note } : {}),
       ...(saving && saving.amount > 0
         ? {
             promotion: line.promotionNames?.join(", ") || text.promo,

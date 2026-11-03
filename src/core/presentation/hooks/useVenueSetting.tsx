@@ -14,6 +14,7 @@ const PAY_WHEN_ORDERING: VenueSetting = {
   kdsDeleteSlips: true,
   defaultTaxRate: null,
   taxAllItems: false,
+  quickNotes: [],
   serviceChargeBps: 0,
   serviceChargeOn: { BAR: true, SPA: true, KTV: true },
   serviceChargeTaxRate: 0,

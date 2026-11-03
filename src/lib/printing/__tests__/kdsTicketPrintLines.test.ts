@@ -28,4 +28,12 @@ describe("kdsTicketPrintLines", () => {
 
     expect(kdsTicketPrintLines(ticket)[0].modifiers).toBe("Snow");
   });
+
+  it("prints the note for the kitchen as the line's remark", () => {
+    const ticket = new KdsTicket({
+      kdsTicketLines: [new KdsTicketLine({ productName: "Soda", quantity: "1", note: "No ice" })],
+    });
+
+    expect(kdsTicketPrintLines(ticket)[0].remarks).toBe("No ice");
+  });
 });

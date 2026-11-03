@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { Toaster } from "@/components/ui/Toaster";
 import { KtvBoardPage } from "../KtvBoardPage";
@@ -32,6 +32,7 @@ let orderLinesState: {
   hostessId?: string;
   askWhoServed?: boolean;
   productName?: string;
+  note?: string;
 }[] = [];
 
 const spaPackages: {
@@ -47,6 +48,7 @@ let venueState: {
   paymentTiming: "PAY_WHEN_ORDERING" | "PAY_AT_END";
   spaMenuOrdering?: boolean;
   ktvMenuOrdering?: boolean;
+  quickNotes?: string[];
 } = {
   paymentTiming: "PAY_WHEN_ORDERING",
 };
@@ -631,6 +633,7 @@ describe("KtvBoardPage", () => {
           quantity: "1",
           unitPrice: "4000",
           hostessId: "hostess-snow",
+          note: "No ice",
         },
       ];
       renderPage();
@@ -648,6 +651,8 @@ describe("KtvBoardPage", () => {
       expect(row("Hostess per hour")?.modifiers).toBe("Snow");
       expect(row("Cus Name")?.modifiers).toBe("Snow");
       expect(row("Myanmar Beer")?.modifiers).toBeUndefined();
+      // The note for the bar prints under the drink.
+      expect(row("Myanmar Beer")?.remarks).toBe("No ice");
     });
 
     it("leaves the lady who ordered a drink off the check slip", async () => {
@@ -818,6 +823,37 @@ describe("KtvBoardPage", () => {
           "ktv-session-1",
           expect.objectContaining({
             items: [{ variantId: "variant-hostess", quantity: 1, hostessId: "hostess-snow" }],
+          })
+        )
+      );
+    });
+
+    it("sends the note written for the kitchen with the drink", async () => {
+      rooms = [busyRoom];
+      venueState = { ...venueState, quickNotes: ["No ice", "Less sugar"] };
+      mocks.chargeItems.mockResolvedValue({
+        charged: "4000.0000",
+        balanceAfter: "196000.0000",
+        quote: paidQuote,
+      });
+      renderPage();
+      fireEvent.click(screen.getByRole("button", { name: /K1/ }));
+      fireEvent.click(await screen.findByRole("button", { name: /Myanmar Beer/ }));
+
+      fireEvent.click(await screen.findByRole("button", { name: "itemNote.title" }));
+      const dialog = await screen.findByRole("dialog", { name: "itemNote.title" });
+      fireEvent.click(within(dialog).getByRole("button", { name: "No ice" }));
+      fireEvent.click(within(dialog).getByRole("button", { name: "itemNote.save" }));
+
+      expect(await screen.findByText("* No ice")).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: /ktvPos.addToBill/ }));
+      await tapCard();
+
+      await waitFor(() =>
+        expect(mocks.chargeItems).toHaveBeenCalledWith(
+          "ktv-session-1",
+          expect.objectContaining({
+            items: [{ variantId: "variant-beer", quantity: 1, note: "No ice" }],
           })
         )
       );

@@ -6,6 +6,7 @@ import {
   pendingOrderItems,
   pendingTotal,
   setOrderedBy,
+  setPendingNote,
   toggleOneFoc,
 } from "../pending";
 
@@ -79,5 +80,29 @@ describe("setOrderedBy", () => {
     expect(setOrderedBy(ordered, pendingKey(ordered[0]))[0].hostessId).toBeUndefined();
     const service = [{ ...beer, quantity: 1, hostessId: "h-rose", service: true }];
     expect(setOrderedBy(service, pendingKey(service[0]), snow)).toBe(service);
+  });
+
+  it("keeps the same item with other options or another note on rows of its own", () => {
+    const egg = [{ modifierId: "egg", name: "Egg", priceDelta: "500" }];
+    const tray = addPending(
+      addPending(addPending([], beer), { ...beer, note: "No ice" }),
+      { ...beer, modifiers: egg, unitPrice: 4000 }
+    );
+
+    expect(tray.map((item) => item.quantity)).toEqual([1, 1, 1]);
+    expect(pendingOrderItems(tray)).toEqual([
+      { variantId: "v-beer", quantity: 1 },
+      { variantId: "v-beer", quantity: 1, note: "No ice" },
+      { variantId: "v-beer", quantity: 1, selectedModifiers: [{ modifierId: "egg" }] },
+    ]);
+  });
+
+  it("merges a row into its twin once they get the same note", () => {
+    const tray = addPending(addPending([], beer, 2), { ...beer, note: "No ice" });
+
+    const noted = setPendingNote(tray, pendingKey(tray[0]), "No ice");
+
+    expect(noted).toEqual([{ ...beer, note: "No ice", quantity: 3 }]);
+    expect(setPendingNote(noted, pendingKey(noted[0]))).toEqual([{ ...beer, quantity: 3 }]);
   });
 });

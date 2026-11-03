@@ -95,12 +95,20 @@ const toSettings = (value: unknown): PrintTemplateSettings => {
       serviceType: asBoolean(other.serviceType, defaults.other.serviceType),
       tableOrRoom: asBoolean(other.tableOrRoom, defaults.other.tableOrRoom),
       pickupCode: asBoolean(other.pickupCode, defaults.other.pickupCode),
-      footerText:
-        other.footerText === undefined
-          ? defaults.other.footerText
-          : String(other.footerText),
+      footerText: footerTextOf(other.footerText, defaults.other.footerText),
     },
   };
+};
+
+/**
+ * The footer a template prints. The server sends null for "print nothing", as
+ * kitchen tickets do by default; it must not reach the paper as the word "null".
+ */
+const footerTextOf = (value: unknown, fallback: string) => {
+  if (value === undefined) return fallback;
+  if (value === null) return "";
+  const text = String(value);
+  return text.trim().toLowerCase() === "null" ? "" : text;
 };
 
 const toTemplate = (item: RecordValue) => {

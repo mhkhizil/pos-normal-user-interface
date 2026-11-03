@@ -136,6 +136,25 @@ describe("SpaBillPanel actions", () => {
     expect(screen.getByText("spa.billClosed")).toBeInTheDocument();
   });
 
+  it("keeps the note for the kitchen in sight once the item is sent", () => {
+    renderPanel({
+      lines: [
+        new SalesOrderLine({
+          id: "line-1",
+          salesOrderId: "order-1",
+          variantId: "variant-soda",
+          productName: "Soda",
+          quantity: "1.0000",
+          unitPrice: "2000.0000",
+          note: "No ice",
+        }),
+      ],
+    });
+
+    // The row is not opened: the note shows on it all the same.
+    expect(screen.getByText("* No ice")).toBeInTheDocument();
+  });
+
   it("shows a copy the promotion gave away at 0", () => {
     const promoLine = (id: string, lineDiscount: string) =>
       new SalesOrderLine({

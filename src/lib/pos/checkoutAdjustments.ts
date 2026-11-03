@@ -74,6 +74,7 @@ export function allocateOrderDiscountToLines<
     selectedModifiers?: unknown;
     priceOverride?: string;
     hostessId?: string;
+    note?: string;
   },
 >(
   lines: T[],
@@ -87,6 +88,7 @@ export function allocateOrderDiscountToLines<
   name?: string;
   selectedModifiers?: Array<{ modifierId: string }>;
   hostessId?: string;
+  note?: string;
 }> {
   let remaining = Math.max(0, toAmount(orderDiscount));
   return lines.map((line) => {
@@ -107,6 +109,7 @@ export function allocateOrderDiscountToLines<
       ...(!fee && line.priceOverride ? { unitPrice: toMoney(line.priceOverride) } : {}),
       ...(modifiers.length ? { selectedModifiers: modifiers } : {}),
       ...(line.hostessId ? { hostessId: line.hostessId } : {}),
+      ...(line.note ? { note: line.note } : {}),
     };
   });
 }
