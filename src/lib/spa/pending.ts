@@ -1,3 +1,6 @@
+import type { ChosenModifier } from "@/core/domain/entities/Cashier";
+import { modifierKey, modifierRefs } from "@/lib/modifiers/choices";
+
 export interface PendingItem {
   variantId: string;
   productId: string;
@@ -13,11 +16,28 @@ export interface PendingItem {
   hostessName?: string;
   /** A service a hostess gives: its hostess is fixed, not who ordered it. */
   service?: boolean;
+  /** The options picked; unitPrice already includes what they add. */
+  modifiers?: ChosenModifier[];
+  /** A note for the kitchen or bar. */
+  note?: string;
 }
 
-/** One row per item, hostess and paid-or-free, so two hostesses never merge. */
-export const pendingKey = (item: Pick<PendingItem, "variantId" | "foc" | "hostessId">): string =>
-  [item.variantId, item.hostessId, item.foc ? "foc" : ""].filter(Boolean).join(":");
+type PendingIdentity = Pick<PendingItem, "variantId" | "foc" | "hostessId" | "modifiers" | "note">;
+
+/**
+ * One row per item, hostess, options, note and paid-or-free, so two hostesses
+ * or two different notes never merge.
+ */
+export const pendingKey = (item: PendingIdentity): string =>
+  [
+    item.variantId,
+    item.hostessId,
+    modifierKey(item.modifiers),
+    item.note ? `note=${item.note}` : "",
+    item.foc ? "foc" : "",
+  ]
+    .filter(Boolean)
+    .join(":");
 
 export const addPending = (
   items: PendingItem[],
@@ -25,7 +45,7 @@ export const addPending = (
   quantity = 1
 ): PendingItem[] => {
   const existing = items.find(
-    (entry) => entry.variantId === item.variantId && entry.hostessId === item.hostessId && !entry.foc
+    (entry) => !entry.foc && pendingKey(entry) === pendingKey({ ...item, foc: false })
   );
   if (existing) {
     return items.map((entry) =>
@@ -89,12 +109,35 @@ export const pendingSaving = (
 ): number =>
   paidPending(items).reduce((sum, entry) => sum + (discounts[entry.variantId]?.discount || 0), 0);
 
-/** What the server is sent for a list of pending items. */
+/** Gives a row its note; rows that end up alike merge. */
+export const setPendingNote = (items: PendingItem[], key: string, note?: string): PendingItem[] => {
+  const source = items.find((entry) => pendingKey(entry) === key);
+  if (!source) return items;
+  const moved = { ...source, note: note || undefined };
+  const twin = items.find((entry) => entry !== source && pendingKey(entry) === pendingKey(moved));
+  if (!twin) return items.map((entry) => (entry === source ? moved : entry));
+  return items
+    .filter((entry) => entry !== source)
+    .map((entry) => (entry === twin ? { ...entry, quantity: entry.quantity + source.quantity } : entry));
+};
+
+/** What the server is sent for a list of pending items; it prices the options itself. */
 export const pendingOrderItems = (
   items: PendingItem[]
-): { variantId: string; quantity: number; hostessId?: string }[] =>
-  items.map((item) => ({
-    variantId: item.variantId,
-    quantity: item.quantity,
-    ...(item.hostessId ? { hostessId: item.hostessId } : {}),
-  }));
+): {
+  variantId: string;
+  quantity: number;
+  hostessId?: string;
+  selectedModifiers?: { modifierId: string }[];
+  note?: string;
+}[] =>
+  items.map((item) => {
+    const refs = modifierRefs(item.modifiers);
+    return {
+      variantId: item.variantId,
+      quantity: item.quantity,
+      ...(item.hostessId ? { hostessId: item.hostessId } : {}),
+      ...(refs.length ? { selectedModifiers: refs } : {}),
+      ...(item.note ? { note: item.note } : {}),
+    };
+  });

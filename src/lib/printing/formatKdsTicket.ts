@@ -862,6 +862,7 @@ export function kdsTicketPrintLines(ticket: KdsTicket): PrintLine[] {
       categoryId: line.categoryId,
       modifiers: withOrderedBy(line.modifiers, line.orderedBy),
       modifierPrices: line.modifierPrices,
+      ...(line.note ? { remarks: line.note } : {}),
     }));
   }
   return (ticket.kdsTicketLines || []).map((line) => ({
@@ -869,6 +870,7 @@ export function kdsTicketPrintLines(ticket: KdsTicket): PrintLine[] {
     quantity: line.quantity || "1",
     modifiers: withOrderedBy(line.kitchenModifiers, line.orderedBy),
     modifierPrices: line.modifierPrices,
+    ...(line.note ? { remarks: line.note } : {}),
     seat: line.seatNumber ? String(line.seatNumber) : undefined,
   }));
 }

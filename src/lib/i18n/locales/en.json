@@ -2026,6 +2026,13 @@
     "whoServes": "Who gives {{service}}?",
     "whoServesHint": "Pick the hostess. One already in a room can still be picked.",
     "noHostesses": "No hostesses are working now. Add them in admin under Hostesses.",
+    "allLadies": "All ladies…",
+    "whoOrdered": "Who ordered {{item}}?",
+    "searchLady": "Search lady…",
+    "ladiesInThisRoom": "In this room",
+    "ladiesFree": "Free",
+    "ladiesInOtherRooms": "In other rooms",
+    "noLadyMatch": "No lady matches.",
     "hostessFree": "Free",
     "hostessInRoom": "In room {{room}}",
     "hostessInRoomUntil": "In room {{room}} until {{time}}",
@@ -2223,5 +2230,13 @@
     "perLoginShift": "Shift: per login",
     "managerApproval": "Manager approval",
     "managerRequired": "A manager must type their User ID and password."
+  },
+  "itemNote": {
+    "quickNotes": "Quick notes",
+    "label": "Note for the kitchen",
+    "placeholder": "Note for the kitchen…",
+    "button": "Note",
+    "title": "Note · {{name}}",
+    "save": "Save note"
   }
 }

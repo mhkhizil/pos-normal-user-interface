@@ -1977,6 +1977,13 @@
     "whoServes": "{{service}} ကို ဘယ်သူ ပေးမလဲ?",
     "whoServesHint": "Hostess ကို ရွေးပါ။ အခန်းထဲ ရောက်နေသူကိုလည်း ရွေးနိုင်ပါသည်။",
     "noHostesses": "ယခု အလုပ်လုပ်နေသော Hostess မရှိပါ။ Admin ရှိ Hostesses တွင် ထည့်ပါ။",
+    "allLadies": "Lady အားလုံး…",
+    "whoOrdered": "{{item}} ကို ဘယ်သူ မှာသလဲ?",
+    "searchLady": "Lady ရှာရန်…",
+    "ladiesInThisRoom": "ဤအခန်းထဲတွင်",
+    "ladiesFree": "အားသည်",
+    "ladiesInOtherRooms": "အခြားအခန်းများတွင်",
+    "noLadyMatch": "ကိုက်ညီသော Lady မရှိပါ။",
     "hostessFree": "အားသည်",
     "hostessInRoom": "အခန်း {{room}} တွင်",
     "hostessInRoomUntil": "အခန်း {{room}} တွင် {{time}} အထိ",
@@ -2223,5 +2230,13 @@
       "itemsFailed": "အော်ဒါ၏ ပစ္စည်းများကို ဖွင့်၍ မရပါ။",
       "failed": "ငွေပြန်အမ်းမှု မလုပ်နိုင်ပါ။"
     }
+  },
+  "itemNote": {
+    "quickNotes": "အမြန်မှတ်ချက်များ",
+    "label": "မီးဖိုချောင်အတွက် မှတ်ချက်",
+    "placeholder": "မီးဖိုချောင်အတွက် မှတ်ချက်…",
+    "button": "မှတ်ချက်",
+    "title": "မှတ်ချက် · {{name}}",
+    "save": "မှတ်ချက် သိမ်းမည်"
   }
 }

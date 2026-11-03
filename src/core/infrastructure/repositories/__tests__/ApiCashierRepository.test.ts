@@ -522,6 +522,49 @@ describe("ApiCashierRepository", () => {
     });
   });
 
+  it("sends each quick-sale item's options, hostess, note and fee price", async () => {
+    const post = vi.fn().mockResolvedValue({ success: true, data: {} });
+    const repository = new ApiCashierRepository({ post } as unknown as HttpClient);
+
+    await repository.checkout({
+      tenantId: "tenant-1",
+      locationId: "location-1",
+      salesChannel: "POS",
+      serviceType: "DINE_IN",
+      items: [
+        {
+          variantId: "variant-rice",
+          quantity: "1",
+          lineDiscount: "0",
+          selectedModifiers: [{ modifierId: "mod-egg" }],
+          hostessId: "hostess-snow",
+          note: "No onion",
+        },
+        { variantId: "variant-fee", quantity: "1", unitPrice: "500", name: "Box" },
+      ],
+      payments: [{ paymentMethodId: "cash", amount: "9000" }],
+    });
+
+    const [, body] = post.mock.calls[0] as [string, { items: unknown[] }];
+    expect(body.items).toEqual([
+      {
+        variantId: "variant-rice",
+        quantity: "1.0000",
+        lineDiscount: "0.0000",
+        selectedModifiers: [{ modifierId: "mod-egg" }],
+        hostessId: "hostess-snow",
+        note: "No onion",
+      },
+      {
+        variantId: "variant-fee",
+        quantity: "1.0000",
+        lineDiscount: "0.0000",
+        unitPrice: "500.0000",
+        name: "Box",
+      },
+    ]);
+  });
+
   it("sends checkout tip, service charge, and discount reason", async () => {
     const post = vi.fn().mockResolvedValue({
       success: true,

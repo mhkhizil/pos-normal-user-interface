@@ -191,6 +191,7 @@ export function KdsPage() {
                                 name: line.productName,
                                 quantity: line.quantity,
                                 modifiers: withOrderedBy(line.kitchenModifiers, line.orderedBy),
+                                note: line.note,
                                 seat: line.seatNumber,
                               }))
                             : (ticket.lines || []).map((line, index) => ({
@@ -198,6 +199,7 @@ export function KdsPage() {
                                 name: line.name,
                                 quantity: line.quantity,
                                 modifiers: withOrderedBy(line.modifiers, line.orderedBy),
+                                note: line.note,
                                 seat: undefined,
                               }))
                           ).map((line) => (
@@ -215,6 +217,11 @@ export function KdsPage() {
                               </div>
                               {line.modifiers ? (
                                 <p className="break-words text-sm text-amber-300">{line.modifiers}</p>
+                              ) : null}
+                              {line.note ? (
+                                <p className="break-words text-sm font-semibold text-white">
+                                  ** {line.note} **
+                                </p>
                               ) : null}
                             </li>
                           ))}

@@ -38,6 +38,7 @@ export function groupBillLines(lines: SalesOrderLine[]): BillLineGroup[] {
       isPromotionFree(line) ? "promo-free" : "",
       line.productName ?? "",
       JSON.stringify(line.selectedModifiers ?? []),
+      line.note ?? "",
     ].join("|");
     const group = groups.get(key);
     if (group) {

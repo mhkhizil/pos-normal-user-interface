@@ -325,6 +325,7 @@ const toSalesOrderLine = (
         : undefined,
     seatNumber: typeof item.seatNumber === "number" ? item.seatNumber : undefined,
     hostessId: item.hostessId ? String(item.hostessId) : undefined,
+        note: item.note ? String(item.note) : undefined,
     askWhoServed: asRecord(asRecord(item.variant)?.product)?.askWhoServed === true,
     promotionNames: Array.isArray(item.promotions)
       ? item.promotions.flatMap((value) => {
@@ -365,6 +366,8 @@ const normalizeUpsertLinePayload = (
       ...modifier,
       priceDelta: toDecimalString(toNumber(modifier.priceDelta) ?? 0),
     })),
+    ...(payload.hostessId !== undefined ? { hostessId: payload.hostessId } : {}),
+    ...(payload.note ? { note: payload.note } : {}),
   };
 };
 
@@ -394,6 +397,7 @@ const normalizePartialLinePayload = (
   if (payload.courseType !== undefined) normalized.courseType = payload.courseType;
   if (payload.seatNumber !== undefined) normalized.seatNumber = payload.seatNumber;
   if (payload.hostessId !== undefined) normalized.hostessId = payload.hostessId;
+  if (payload.note !== undefined) normalized.note = payload.note;
   if (payload.selectedModifiers !== undefined) {
     normalized.selectedModifiers = payload.selectedModifiers.map((modifier) => ({
       ...modifier,
