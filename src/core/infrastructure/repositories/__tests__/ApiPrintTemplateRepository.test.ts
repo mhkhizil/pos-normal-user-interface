@@ -68,4 +68,32 @@ describe("ApiPrintTemplateRepository", () => {
     });
     expect(resolved.source).toBe("LOCATION");
   });
+
+  it("prints no footer for a kitchen ticket whose footer is null", async () => {
+    const kitchen = (footerText: unknown) => ({
+      id: "kitchen-1",
+      type: "KITCHEN",
+      name: "Kitchen",
+      paperWidth: "MM80",
+      settings: { other: { footerText } },
+    });
+    const httpClient = {
+      get: vi.fn().mockResolvedValue({
+        success: true,
+        meta: { total: 3, page: 1, limit: 10, totalPages: 1 },
+        data: [kitchen(null), kitchen("null"), kitchen("See you")],
+      }),
+    };
+    const repository = new ApiPrintTemplateRepository(
+      httpClient as unknown as HttpClient
+    );
+
+    const { templates } = await repository.list({ page: 1, limit: 10 });
+
+    expect(templates.map((item) => item.settings.other.footerText)).toEqual([
+      "",
+      "",
+      "See you",
+    ]);
+  });
 });

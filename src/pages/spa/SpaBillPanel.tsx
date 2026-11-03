@@ -358,6 +358,9 @@ export function SpaBillPanel({
                     }`}
                   />
                 </button>
+                {line.note ? (
+                  <p className="break-words pl-1 text-xs italic text-amber-200">* {line.note}</p>
+                ) : null}
                 {isOpen ? (
                   <>
                     <p className="mt-0.5 truncate text-xs tabular-nums text-slate-500">
@@ -379,9 +382,6 @@ export function SpaBillPanel({
                       <p className="truncate text-xs font-medium text-pink-300">
                         {tr("orderedBy", { name: orderedByName(line) })}
                       </p>
-                    ) : null}
-                    {line.note ? (
-                      <p className="break-words text-xs italic text-amber-200">* {line.note}</p>
                     ) : null}
                     {editable || canEdit ? (
                       <div className="mt-1 flex items-center justify-between gap-1">
