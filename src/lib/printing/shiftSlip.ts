@@ -1,5 +1,9 @@
 import type { ShiftSummary } from "@/core/domain/entities/Shift";
+import { shiftGroupBlocks } from "@/lib/pos/shiftGroups";
 import { formatPrintDate, SaleReceipt } from "./formatKdsTicket";
+
+const amountText = (value: number) => value.toLocaleString(undefined, { maximumFractionDigits: 2 });
+const UNIT = { qty: "", hours: " h", orders: " orders", bill: "" } as const;
 
 /** A shift's report as the till's receipt printer prints it. */
 export function shiftSlip(summary: ShiftSummary): SaleReceipt {
@@ -19,6 +23,31 @@ export function shiftSlip(summary: ShiftSummary): SaleReceipt {
         : []),
     ],
     lines: [],
+    sections: summary.groups
+      ? shiftGroupBlocks(summary.groups, {
+          staffMeal: "Staff meal",
+          other: "Other",
+          rooms: "Rooms",
+          takeaway: "Take away",
+          credit: "Credit",
+          noAccount: "No account",
+        }).map((block) => ({
+          title: block.title.toUpperCase(),
+          rows: block.rows.map((row) => ({
+            left:
+              block.unit === "bill"
+                ? `${row.name} ${row.count}`
+                : `${row.count}${UNIT[block.unit]} x ${row.name}`,
+            right: amountText(row.amount),
+          })),
+          total: {
+            left: block.total.count
+              ? `Total ${block.total.count}${UNIT[block.unit]}`
+              : "Total",
+            right: amountText(block.total.amount),
+          },
+        }))
+      : undefined,
     amounts: [
       { label: "Sales", amount: String(summary.totalSales) },
       { label: "Refunds", amount: String(-Math.abs(summary.totalRefunds)) },

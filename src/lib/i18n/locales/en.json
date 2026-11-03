@@ -2171,6 +2171,21 @@
     "nextPage": "Next page"
   },
   "shift": {
+    "groups": {
+      "staffMeal": "Staff meal",
+      "other": "Other",
+      "rooms": "Rooms",
+      "takeaway": "Take away",
+      "credit": "Credit",
+      "noAccount": "No account",
+      "qty": "Qty",
+      "hours": "Hours",
+      "orders": "Orders",
+      "bill": "Bill no",
+      "amount": "Amount",
+      "total": "{{name}} total",
+      "note": "Net sales: after discounts, before tax and service charge. FOC counts at 0; voids are left out."
+    },
     "openHint": "Your shift starts now, so your sales are put to you.",
     "openButton": "Open shift",
     "openBy": "{{name}} has a shift open on this POS device.",

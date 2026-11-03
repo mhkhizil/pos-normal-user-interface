@@ -225,6 +225,7 @@ export const API_ENDPOINTS = {
     DELETE: (id: string) => `/api/v1/pos-sessions/${id}`,
     CLOSE: (id: string) => `/api/v1/pos-sessions/${id}/close`,
     SUMMARY: (id: string) => `/api/v1/pos-sessions/${id}/summary`,
+    SALES_GROUPS: (id: string) => `/api/v1/pos-sessions/${id}/sales-groups`,
     CURRENT: "/api/v1/pos-sessions/current",
   },
 

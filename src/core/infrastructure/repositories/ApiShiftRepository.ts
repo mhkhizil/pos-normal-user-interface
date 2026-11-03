@@ -2,6 +2,8 @@ import type {
   CurrentShift,
   PosKind,
   ManagerApproval,
+  ShiftSalesGroups,
+  ShiftSectionKind,
   ShiftSummary,
 } from "../../domain/entities/Shift";
 import { HttpClient } from "../api/HttpClient";
@@ -45,6 +47,49 @@ const toCurrent = (response: unknown): CurrentShift => {
       : null,
     dueAt: body.dueAt ? String(body.dueAt) : null,
     overdue: Boolean(body.overdue),
+  };
+};
+
+const rows = (value: unknown) => (Array.isArray(value) ? value.map(asRecord) : []);
+const KINDS: ShiftSectionKind[] = ["STATION", "STAFF_MEAL", "OTHER"];
+
+export const toSalesGroups = (response: unknown): ShiftSalesGroups => {
+  const body = unwrap(response, "sections");
+  const rooms = asRecord(body.rooms);
+  const takeaway = asRecord(body.takeaway);
+  const credit = asRecord(body.credit);
+  return {
+    sections: rows(body.sections).map((section) => ({
+      key: String(section.key || ""),
+      kind: KINDS.find((kind) => kind === section.kind) ?? "OTHER",
+      name: section.name ? String(section.name) : null,
+      items: rows(section.items).map((item) => ({
+        variantId: String(item.variantId || ""),
+        name: String(item.name || ""),
+        quantity: money(item.quantity),
+        amount: money(item.amount),
+      })),
+      quantity: money(section.quantity),
+      amount: money(section.amount),
+    })),
+    rooms: {
+      rows: rows(rooms.rows).map((row) => ({
+        room: String(row.room || ""),
+        hours: money(row.hours),
+        amount: money(row.amount),
+      })),
+      hours: money(rooms.hours),
+      amount: money(rooms.amount),
+    },
+    takeaway: { orders: Number(takeaway.orders || 0), amount: money(takeaway.amount) },
+    credit: {
+      rows: rows(credit.rows).map((row) => ({
+        account: String(row.account || ""),
+        orderNumber: String(row.orderNumber || ""),
+        amount: money(row.amount),
+      })),
+      amount: money(credit.amount),
+    },
   };
 };
 
@@ -103,12 +148,31 @@ export class ApiShiftRepository {
   }
 
   async summary(sessionId: string): Promise<ShiftSummary> {
-    return toSummary(await this.httpClient.get(API_ENDPOINTS.POS_SESSIONS.SUMMARY(sessionId)));
+    const [summary, groups] = await Promise.all([
+      this.httpClient.get(API_ENDPOINTS.POS_SESSIONS.SUMMARY(sessionId)),
+      this.salesGroups(sessionId),
+    ]);
+    return { ...toSummary(summary), ...(groups ? { groups } : {}) };
   }
 
   /** Closes the shift for its sales report; nobody counts the drawer. */
   async close(sessionId: string): Promise<ShiftSummary> {
-    return toSummary(await this.httpClient.post(API_ENDPOINTS.POS_SESSIONS.CLOSE(sessionId), {}));
+    const summary = toSummary(
+      await this.httpClient.post(API_ENDPOINTS.POS_SESSIONS.CLOSE(sessionId), {})
+    );
+    const groups = await this.salesGroups(sessionId);
+    return { ...summary, ...(groups ? { groups } : {}) };
+  }
+
+  /** The report still shows its totals when the groups cannot be had. */
+  private async salesGroups(sessionId: string): Promise<ShiftSalesGroups | undefined> {
+    try {
+      return toSalesGroups(
+        await this.httpClient.get(API_ENDPOINTS.POS_SESSIONS.SALES_GROUPS(sessionId))
+      );
+    } catch {
+      return undefined;
+    }
   }
 
   /** A manager types their own login on this till; the token approves one thing for 5 minutes. */

@@ -42,6 +42,29 @@ export interface ShiftSummary {
   /** The tips taken on this shift, when the summary reports them. */
   tipAmount?: number;
   paymentBreakdown: { methodName: string; transactionCount: number; totalAmount: number }[];
+  /** What it sold by group; missing when the server could not say. */
+  groups?: ShiftSalesGroups;
+}
+
+export type ShiftSectionKind = "STATION" | "STAFF_MEAL" | "OTHER";
+
+/**
+ * A shift's sales by where they were made. Amounts are net sales: after discounts,
+ * before tax and service charge; a free item counts at 0, a void not at all.
+ */
+export interface ShiftSalesGroups {
+  sections: {
+    key: string;
+    kind: ShiftSectionKind;
+    /** The KDS station; null for staff meal and other. */
+    name: string | null;
+    items: { variantId: string; name: string; quantity: number; amount: number }[];
+    quantity: number;
+    amount: number;
+  }[];
+  rooms: { rows: { room: string; hours: number; amount: number }[]; hours: number; amount: number };
+  takeaway: { orders: number; amount: number };
+  credit: { rows: { account: string; orderNumber: string; amount: number }[]; amount: number };
 }
 
 export interface ManagerApproval {

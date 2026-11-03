@@ -99,6 +99,12 @@ export interface SaleReceipt extends PrintParty {
   // extraFee and tip are not print-template fields, so they stay off the voucher.
   // extraFee?: string;
   // tip?: string;
+  /** Titled blocks of rows after the items, such as a shift's sales by group. */
+  sections?: Array<{
+    title: string;
+    rows: Array<{ left: string; right: string }>;
+    total?: { left: string; right: string };
+  }>;
   /** Labelled amounts above the total, such as a shift's sales and refunds. */
   amounts?: Array<{ label: string; amount: string }>;
   totalLabel?: string;
@@ -765,6 +771,13 @@ function receiptLayout(receipt: SaleReceipt): Layout {
       layout.rule("-");
       for (const [name, total] of totals) layout.pair(name, printMoney(total));
     }
+  }
+
+  for (const section of receipt.sections || []) {
+    layout.rule("-");
+    layout.line(section.title, { bold: true });
+    for (const row of section.rows) layout.pair(row.left, row.right);
+    if (section.total) layout.pair(section.total.left, section.total.right, { bold: true });
   }
 
   const breakdown: Array<[string, string | undefined]> = showBreakdown
