@@ -149,6 +149,7 @@ export function CashierPage() {
     isLoading,
     error,
     fetchProducts,
+    fetchProduct,
     fetchProductVariants,
     fetchSalesOrders,
     fetchPaymentMethods,
@@ -3555,6 +3556,7 @@ export function CashierPage() {
                 onClose={handleCloseMenu}
                 offerOptions
                 quickNotes={quickNotes}
+                onLoadProduct={fetchProduct}
                 toolbar={
                   menuCategories.length ? (
                     <div className="mt-2 min-[1100px]:hidden">

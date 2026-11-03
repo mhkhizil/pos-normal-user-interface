@@ -1122,6 +1122,52 @@ describe("ApiCashierRepository", () => {
     expect(ticket.lines?.map((line) => line.orderedBy)).toEqual(["Snow", undefined]);
   });
 
+  it("reads the option groups a product carries, and tells an empty list from none", async () => {
+    const get = vi.fn().mockResolvedValue({
+      success: true,
+      data: [
+        {
+          id: "product-1",
+          tenantId: "tenant-1",
+          name: "Noodles",
+          basePrice: "3000.0000",
+          modifierGroups: [
+            {
+              id: "add-ons",
+              name: "Add-ons",
+              minSelection: 0,
+              maxSelection: 2,
+              isRequired: false,
+              modifiers: [
+                { id: "egg", name: "Egg", priceDelta: "500.0000", isDefault: false },
+              ],
+            },
+          ],
+        },
+        { id: "product-2", tenantId: "tenant-1", name: "Water", basePrice: "500.0000", modifierGroups: [] },
+        { id: "product-3", tenantId: "tenant-1", name: "Tea", basePrice: "1000.0000" },
+      ],
+      meta: { total: 3, page: 1, limit: 20, totalPages: 1 },
+    });
+    const repository = new ApiCashierRepository({ get } as unknown as HttpClient);
+
+    const [noodles, water, tea] = await repository.getProducts();
+
+    expect(noodles.modifierGroups).toEqual([
+      {
+        id: "add-ons",
+        name: "Add-ons",
+        minSelection: 0,
+        maxSelection: 2,
+        isRequired: false,
+        modifiers: [{ id: "egg", name: "Egg", priceDelta: "500.0000", isDefault: false }],
+      },
+    ]);
+    // An empty list means none attached; a missing field means the payload did not say.
+    expect(water.modifierGroups).toEqual([]);
+    expect(tea.modifierGroups).toBeUndefined();
+  });
+
   it("creates a product and variant with decimal prices and matrix options", async () => {
     const post = vi.fn().mockImplementation((url: string) => {
       if (String(url).endsWith("/variants")) {

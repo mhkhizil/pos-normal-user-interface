@@ -5,7 +5,7 @@ import {
   SalesOrderLine,
 } from "@/core/domain/entities/Cashier";
 import { formatKdsTicket } from "../formatKdsTicket";
-import { applyKdsTicketModifiers } from "../kdsTicketModifiers";
+import { applyKdsTicketHostess, applyKdsTicketModifiers } from "../kdsTicketModifiers";
 
 const ticket = () =>
   new KdsTicket({
@@ -61,5 +61,39 @@ describe("KDS ticket modifiers", () => {
     });
 
     expect(applyKdsTicketModifiers(current, [otherLine])).toBe(current);
+  });
+});
+
+describe("KDS ticket lady name", () => {
+  const names: Record<string, string> = { "hostess-1": "Snow" };
+
+  it("names the lady who ordered a line, after its options", () => {
+    const current = ticket();
+    current.lines![0].modifiers = "No sugar";
+    const order = new SalesOrderLine({ id: "line-1", hostessId: "hostess-1" });
+
+    const named = applyKdsTicketHostess(current, [order], (id) => names[id]);
+
+    expect(named.kdsTicketLines?.[0].orderedBy).toBe("Snow");
+    expect(named.lines?.[0].orderedBy).toBe("Snow");
+    // Each option prints on its own "+" row, the lady after the options.
+    const printed = formatKdsTicket(named);
+    expect(printed).toContain("+ No sugar");
+    expect(printed).toContain("+ Snow");
+  });
+
+  it("keeps the lady the ticket already carries", () => {
+    const current = ticket();
+    current.kdsTicketLines![0].orderedBy = "Lily";
+    const order = new SalesOrderLine({ id: "line-1", hostessId: "hostess-1" });
+
+    expect(applyKdsTicketHostess(current, [order], (id) => names[id])).toBe(current);
+  });
+
+  it("leaves a line with no lady alone", () => {
+    const current = ticket();
+    const order = new SalesOrderLine({ id: "line-1" });
+
+    expect(applyKdsTicketHostess(current, [order], (id) => names[id])).toBe(current);
   });
 });

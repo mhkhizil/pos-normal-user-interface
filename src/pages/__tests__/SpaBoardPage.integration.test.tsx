@@ -120,6 +120,7 @@ const scrub = {
   id: "product-scrub",
   tenantId: "tenant-1",
   name: "Foot Scrub",
+  categoryId: "cat-spa-services",
   categoryName: "Spa Services",
   trackingType: "SERVICE",
   basePrice: "6000.0000",
@@ -550,13 +551,13 @@ describe("SpaBoardPage", () => {
   });
 
   it("tells the kitchen to stop when a line already sent is removed", async () => {
+    // The server's line carries no category id; the menu names the station.
     lines = [
       {
         id: "line-1",
         salesOrderId: "order-1",
         variantId: "variant-scrub",
         productName: "Foot Scrub",
-        categoryId: "cat-food",
         quantity: "1.0000",
         unitPrice: "6000.0000",
         status: "SERVED",
@@ -568,7 +569,7 @@ describe("SpaBoardPage", () => {
           id: "station-1",
           name: "Kitchen",
           printerIds: ["printer-1"],
-          routingRules: { categoryIds: ["cat-food"] },
+          routingRules: { categoryIds: ["cat-spa-services"] },
         },
       ],
     });
@@ -585,12 +586,12 @@ describe("SpaBoardPage", () => {
       expect.objectContaining({
         name: "Foot Scrub",
         quantity: "1.0000",
-        categoryId: "cat-food",
+        categoryId: "cat-spa-services",
         remarks: "cashier.orderPanel.kdsDeleteTitle",
       }),
     ]);
     expect(stations).toEqual([
-      expect.objectContaining({ id: "station-1", categoryIds: ["cat-food"] }),
+      expect.objectContaining({ id: "station-1", categoryIds: ["cat-spa-services"] }),
     ]);
     expect(options).toEqual({ requireStationRouting: true });
   });

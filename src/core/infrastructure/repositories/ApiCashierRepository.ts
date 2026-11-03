@@ -1132,7 +1132,11 @@ const toProduct = (item: Record<string, unknown>) => {
     minimumBlocks: toNumber(item.minimumBlocks) ?? null,
     askWhoServed: toBoolean(item.askWhoServed) ?? false,
     chargeMode: item.chargeMode === "CLOCK" ? "CLOCK" : item.chargeMode === "PAY_FIRST" ? "PAY_FIRST" : null,
-    modifierGroups: toModifierGroups(item.modifierGroups),
+    // Kept undefined when the payload leaves them out, so the till can tell "none
+    // attached" from "this list did not say", and read the product when it must.
+    modifierGroups: Array.isArray(item.modifierGroups)
+      ? toModifierGroups(item.modifierGroups)
+      : undefined,
     autoApply: toBoolean(item.autoApply) ?? false,
     deletedAt: item.deletedAt ? String(item.deletedAt) : item.deletedAt === null ? null : undefined,
     createdAt: item.createdAt ? String(item.createdAt) : undefined,

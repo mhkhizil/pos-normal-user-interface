@@ -141,6 +141,8 @@ interface UseCashierReturn {
   ) => Promise<string>;
   fetchProducts: (params?: ProductFilterDTO) => Promise<void>;
   fetchProductVariants: (productId: string) => Promise<ProductVariant[]>;
+  /** One product as the server keeps it, for what the menu list leaves out. */
+  fetchProduct: (productId: string) => Promise<Product>;
   fetchSalesOrders: (params?: SalesOrderFilterDTO) => Promise<void>;
   fetchPaymentMethods: () => Promise<void>;
   fetchPosRegisters: (params?: PosRegisterFilterDTO) => Promise<PosRegister[]>;
@@ -483,6 +485,12 @@ export function useCashier(): UseCashierReturn {
       }
     },
     [clearError, ensureVariants]
+  );
+
+  /** One product, as the server keeps it: its options need not ride on the menu list. */
+  const fetchProduct = useCallback(
+    (productId: string) => cashierService.getProduct(productId),
+    [cashierService]
   );
 
   const addProductToOrder = useCallback(
@@ -1636,6 +1644,7 @@ export function useCashier(): UseCashierReturn {
       error,
       fetchInventoryLocations,
       fetchProducts,
+      fetchProduct,
       fetchProductVariants,
       fetchSalesOrders,
       fetchPaymentMethods,
@@ -1719,6 +1728,7 @@ export function useCashier(): UseCashierReturn {
       error,
       fetchInventoryLocations,
       fetchProducts,
+      fetchProduct,
       fetchProductVariants,
       fetchSalesOrders,
       fetchPaymentMethods,

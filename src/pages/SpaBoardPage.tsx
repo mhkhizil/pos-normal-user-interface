@@ -116,6 +116,7 @@ import { linePriceNote } from "@/lib/pos/linePrice";
 import { modifierExtra } from "@/lib/modifiers/choices";
 import { LineEditDialog, type LineEdit } from "./cashier/LineEditDialog";
 import { modifierPrintText } from "@/lib/printing/modifierText";
+import { applyKdsTicketHostess } from "@/lib/printing/kdsTicketModifiers";
 import { receiptTotals } from "@/lib/printing/receiptTotals";
 import { groupRoomTimeRows, mergedRoomTimeLine } from "@/lib/printing/roomTimeRows";
 import { cashierLabel } from "@/lib/printing/cashier";
@@ -1154,8 +1155,20 @@ export function SpaBoardPage({ kind = "spa" }: { kind?: RoomKind }) {
     if (!salesOrderId || !before) return;
     try {
       const { tickets } = await listKdsTickets({ salesOrderId, limit: 100 });
-      for (const ticket of tickets.filter((item) => !before.has(item.id))) {
-        await printer.printTicket(ticket);
+      const fresh = tickets.filter((item) => !before.has(item.id));
+      if (!fresh.length) return;
+      // The kitchen slip names the lady who ordered a line; the ticket the server
+      // sends need not, so the order lines fill her in before it prints.
+      const needsNames = fresh.some((ticket) =>
+        ticket.kdsTicketLines?.some((line) => !line.orderedBy?.trim())
+      );
+      const lines = needsNames
+        ? await fetchOrderLines(salesOrderId, { page: 1, limit: 200 })
+            .then((result) => result.lines || [])
+            .catch(() => orderLines)
+        : orderLines;
+      for (const ticket of fresh) {
+        await printer.printTicket(applyKdsTicketHostess(ticket, lines, hostessName));
       }
     } catch (caught) {
       setActionError(
@@ -1192,10 +1205,13 @@ export function SpaBoardPage({ kind = "spa" }: { kind?: RoomKind }) {
           sentBy: cashierLabel(user),
           lines: printed.map((line) => {
             const modifiers = modifierPrintText(line.selectedModifiers);
+            const menuItem = menuItemOf[line.variantId];
             return {
               name: lineDisplayName(line) || line.productName || tr("item"),
               quantity: String(line.quantity || "1"),
-              categoryId: line.categoryId,
+              // The line the server kept carries no category id, so the station
+              // is named from the menu; without it there is nothing to route.
+              categoryId: line.categoryId || menuItem?.product.categoryId,
               modifiers: modifiers.names,
               modifierPrices: modifiers.prices,
               // The line prints the same name, marked as gone.
@@ -1211,14 +1227,9 @@ export function SpaBoardPage({ kind = "spa" }: { kind?: RoomKind }) {
         })),
         { requireStationRouting: true }
       );
+      // A line no station routes never reached the kitchen, so there is nothing
+      // to call back; a station with no printer bound here is worth saying.
       const problems: string[] = [];
-      if (plan.unrouted.length) {
-        problems.push(
-          t("cashier.errors.kdsUnrouted", {
-            items: plan.unrouted.map((line) => line.name).join(", "),
-          })
-        );
-      }
       if (plan.missingPrinterRoutes.length) {
         problems.push(
           t("cashier.errors.kdsPrinterUnavailable", {
