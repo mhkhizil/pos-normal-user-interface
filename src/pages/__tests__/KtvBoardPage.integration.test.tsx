@@ -24,7 +24,15 @@ let rentalsState: {
   blockMinutes: number;
   minimumUnits: number;
 }[] = [];
-let orderLinesState: { id: string; variantId: string; quantity: string; unitPrice: string }[] = [];
+let orderLinesState: {
+  id: string;
+  variantId: string;
+  quantity: string;
+  unitPrice: string;
+  hostessId?: string;
+  askWhoServed?: boolean;
+  productName?: string;
+}[] = [];
 
 const spaPackages: {
   id: string;
@@ -594,6 +602,52 @@ describe("KtvBoardPage", () => {
       expect(slip.lines[1]).toEqual(
         expect.objectContaining({ name: "Myanmar Beer", quantity: "1" })
       );
+    });
+
+    it("still names who gave a hostess service on the check slip", async () => {
+      rooms = [busyRoom];
+      orderLinesState = [
+        { id: "line-1", variantId: "variant-ktv", quantity: "1", unitPrice: "40000" },
+        {
+          id: "line-2",
+          variantId: "variant-hostess",
+          quantity: "1",
+          unitPrice: "20000",
+          hostessId: "hostess-snow",
+        },
+        {
+          // A service the board's menu does not list: the line itself says so.
+          id: "line-3",
+          variantId: "variant-off-menu",
+          quantity: "1",
+          unitPrice: "50000",
+          hostessId: "hostess-snow",
+          askWhoServed: true,
+          productName: "Cus Name",
+        },
+        {
+          id: "line-4",
+          variantId: "variant-beer",
+          quantity: "1",
+          unitPrice: "4000",
+          hostessId: "hostess-snow",
+        },
+      ];
+      renderPage();
+      fireEvent.click(screen.getByRole("button", { name: /K1/ }));
+      expect(await screen.findAllByText("ktvPos.treatmentCharge")).toHaveLength(1);
+
+      fireEvent.click(screen.getByRole("button", { name: "ktvPos.endTreatment" }));
+      fireEvent.click(await screen.findByRole("button", { name: "ktvPos.printBill" }));
+
+      await waitFor(() => expect(mocks.printReceipt).toHaveBeenCalled());
+      const slip = mocks.printReceipt.mock.calls.at(-1)?.[0] as {
+        lines: Array<Record<string, unknown>>;
+      };
+      const row = (name: string) => slip.lines.find((line) => line.name === name);
+      expect(row("Hostess per hour")?.modifiers).toBe("Snow");
+      expect(row("Cus Name")?.modifiers).toBe("Snow");
+      expect(row("Myanmar Beer")?.modifiers).toBeUndefined();
     });
 
     it("leaves the lady who ordered a drink off the check slip", async () => {

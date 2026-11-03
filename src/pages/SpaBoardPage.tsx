@@ -525,14 +525,25 @@ export function SpaBoardPage({ kind = "spa" }: { kind?: RoomKind }) {
         const name = hostessName(id);
         return name ? [{ id, name }] : [];
       });
+  const isHostessService = (line: SalesOrderLine) =>
+    Boolean(line.askWhoServed) || serviceVariantIds.has(line.variantId);
   const orderedByName = (line: SalesOrderLine) =>
-    line.hostessId && !serviceVariantIds.has(line.variantId)
+    line.hostessId && !isHostessService(line)
       ? hostessName(line.hostessId) || tr("aHostess")
       : undefined;
-  /** A printed line's options, then the name of the hostess who ordered it. */
+  /**
+   * The hostess a printed line names: who gave a hostess service, on every slip;
+   * who ordered a dish or drink, except on the check slip.
+   */
+  const slipHostess = (line: SalesOrderLine, withOrderedBy: boolean) => {
+    if (!line.hostessId) return undefined;
+    if (isHostessService(line)) return hostessName(line.hostessId) || tr("aHostess");
+    return withOrderedBy ? orderedByName(line) : undefined;
+  };
+  /** A printed line's options, then the name of its hostess. */
   const printedExtras = (line: SalesOrderLine, withOrderedBy = true) => {
     const modifiers = modifierPrintText(line.selectedModifiers);
-    const who = withOrderedBy ? orderedByName(line) : undefined;
+    const who = slipHostess(line, withOrderedBy);
     if (!who) return modifiers;
     return {
       names: [modifiers.names, who].filter(Boolean).join(", "),
