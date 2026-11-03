@@ -11,6 +11,10 @@ vi.mock("react-i18next", () => ({
   }),
 }));
 
+vi.mock("@/core/presentation/hooks/useWorkingHostesses", () => ({
+  useWorkingHostesses: () => ({ hostesses: [], isLoading: false, error: null, loadedAt: null, load: vi.fn() }),
+}));
+
 const room = new SpaRoom({
   id: "room-102",
   roomNumber: "102",

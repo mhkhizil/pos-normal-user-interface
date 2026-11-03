@@ -8,6 +8,7 @@ export function useWorkingHostesses() {
   const [hostesses, setHostesses] = useState<Hostess[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loadedAt, setLoadedAt] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -15,6 +16,7 @@ export function useWorkingHostesses() {
     try {
       const repository = container.resolve<ApiHostessRepository>("hostessRepository");
       setHostesses(await repository.working());
+      setLoadedAt(Date.now());
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Couldn't load hostesses");
     } finally {
@@ -22,5 +24,5 @@ export function useWorkingHostesses() {
     }
   }, []);
 
-  return { hostesses, isLoading, error, load };
+  return { hostesses, isLoading, error, load, loadedAt };
 }

@@ -6,6 +6,10 @@ import { DiningTable, PaymentMethod, SalesOrder, SalesOrderLine, TableSession } 
 import type { RunningPromotion } from "@/core/domain/entities/Promotion";
 import { groupOrderLines, OrderPanel } from "../OrderPanel";
 
+vi.mock("@/core/presentation/hooks/useWorkingHostesses", () => ({
+  useWorkingHostesses: () => ({ hostesses: [], isLoading: false, error: null, loadedAt: null, load: vi.fn() }),
+}));
+
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));

@@ -1,12 +1,17 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/Button";
 import type { Hostess } from "@/core/domain/entities/Hostess";
 import { useRoomText } from "@/core/presentation/hooks/useRoomText";
+import { useWorkingHostesses } from "@/core/presentation/hooks/useWorkingHostesses";
 
 const ladyName = (hostess: Hostess) => hostess.nickname || hostess.name;
 
-/** Every lady on duty, to say who ordered an item: this room's first, then free, then the rest. */
+/**
+ * Every lady on duty, to say who ordered an item: this room's first, then free, then
+ * the rest. Shows the list it was given at once and reloads it on opening, so a lady
+ * sent to a room since shows there, not as free.
+ */
 export function LadyPicker({
   itemName,
   ladies,
@@ -23,10 +28,16 @@ export function LadyPicker({
   const { t } = useTranslation();
   const tr = useRoomText("ktv");
   const [search, setSearch] = useState("");
+  const working = useWorkingHostesses();
+  const { load } = working;
+  useEffect(() => {
+    void load();
+  }, [load]);
+  const shown = working.loadedAt && !working.error ? working.hostesses : ladies;
 
   const sections = useMemo(() => {
     const term = search.trim().toLowerCase();
-    const found = ladies
+    const found = shown
       .filter(
         (hostess) =>
           !term ||
@@ -45,7 +56,7 @@ export function LadyPicker({
         items: found.filter((hostess) => hostess.inRoom && !here(hostess)),
       },
     ].filter((section) => section.items.length);
-  }, [ladies, roomNumber, search, tr]);
+  }, [shown, roomNumber, search, tr]);
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4">
@@ -67,7 +78,7 @@ export function LadyPicker({
           className="h-11 w-full rounded-md border border-slate-700 bg-slate-900 px-3 text-slate-100 focus:border-blue-500 focus:outline-none"
         />
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto">
-          {!ladies.length ? (
+          {!shown.length ? (
             <p className="text-sm text-slate-400">{tr("noHostesses")}</p>
           ) : !sections.length ? (
             <p className="text-sm text-slate-400">{tr("noLadyMatch")}</p>

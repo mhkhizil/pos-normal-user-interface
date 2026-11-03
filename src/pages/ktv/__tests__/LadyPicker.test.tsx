@@ -1,12 +1,20 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Hostess } from "@/core/domain/entities/Hostess";
 import { LadyPicker } from "../LadyPicker";
 import { LineEditDialog } from "../../cashier/LineEditDialog";
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
+}));
+
+const working = vi.hoisted(() => ({
+  state: { hostesses: [] as unknown[], isLoading: false, error: null, loadedAt: null as number | null },
+  load: vi.fn(),
+}));
+vi.mock("@/core/presentation/hooks/useWorkingHostesses", () => ({
+  useWorkingHostesses: () => ({ ...working.state, load: working.load }),
 }));
 
 const lady = (id: string, name: string, room?: string, nickname: string | null = null): Hostess => ({
@@ -24,6 +32,28 @@ const ladies = [
 ];
 
 describe("LadyPicker", () => {
+  beforeEach(() => {
+    working.state = { hostesses: [], isLoading: false, error: null, loadedAt: null };
+    working.load.mockClear();
+  });
+
+  it("reloads the ladies on opening and files each where she is now", () => {
+    working.state = {
+      hostesses: [lady("hnin", "Hnin", "3"), lady("mya", "Mya", "3")],
+      isLoading: false,
+      error: null,
+      loadedAt: 1,
+    };
+    render(
+      <LadyPicker itemName="Tiger Beer" ladies={ladies} roomNumber="3" onPick={vi.fn()} onCancel={vi.fn()} />
+    );
+
+    expect(working.load).toHaveBeenCalled();
+    const here = screen.getByText("spa.ladiesInThisRoom").closest("section")!;
+    expect(within(here).getAllByRole("button").map((button) => button.textContent)).toEqual(["Hnin", "Mya"]);
+    expect(screen.queryByText("spa.ladiesFree")).toBeNull();
+  });
+
   it("lists this room's ladies first, then free ones, then the ones in other rooms", () => {
     render(
       <LadyPicker itemName="Tiger Beer" ladies={ladies} roomNumber="3" onPick={vi.fn()} onCancel={vi.fn()} />
