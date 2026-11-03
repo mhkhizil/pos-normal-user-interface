@@ -64,6 +64,61 @@ import {
   clearAuthAndRedirectToLogin,
 } from "@/lib/cookies";
 
+type SignOutReason = "session_expired" | "signed_in_elsewhere";
+
+const signOutReason = (message: unknown): SignOutReason =>
+  /another device/i.test(String(message || "")) ? "signed_in_elsewhere" : "session_expired";
+
+/** The server refused to renew the session: the staff member must sign in again. */
+export class SessionEndedError extends Error {
+  constructor(readonly reason: SignOutReason) {
+    super("Authentication required");
+  }
+}
+
+let renewing: Promise<string> | null = null;
+const retriedRequests = new WeakSet<object>();
+
+/**
+ * Swaps the saved refresh token for a new pair, once at a time however many
+ * requests ask. Rejects with SessionEndedError when the server says the session
+ * is over; any other failure (no network) leaves the saved tokens alone.
+ */
+export const renewSession = (baseUrl: string = API_CONFIG.BASE_URL): Promise<string> => {
+  const refreshToken = tokenCookies.getRefreshToken();
+  if (!refreshToken) return Promise.reject(new SessionEndedError("session_expired"));
+  renewing ??= axios
+    .post(
+      `${baseUrl}${API_ENDPOINTS.AUTH.REFRESH}`,
+      { refresh_token: refreshToken },
+      { withCredentials: false }
+    )
+    .then((response) => {
+      const body = response.data as {
+        access_token?: string;
+        refresh_token?: string;
+        data?: { access_token?: string; refresh_token?: string };
+      };
+      const pair = body?.access_token ? body : body?.data;
+      if (!pair?.access_token) throw new SessionEndedError("session_expired");
+      tokenCookies.setToken(pair.access_token);
+      if (pair.refresh_token) tokenCookies.setRefreshToken(pair.refresh_token);
+      return pair.access_token;
+    })
+    .catch((error: unknown) => {
+      if (error instanceof SessionEndedError) throw error;
+      const response = axios.isAxiosError(error) ? error.response : undefined;
+      if (response?.status === 401 || response?.status === 403) {
+        throw new SessionEndedError(signOutReason(response.data?.message));
+      }
+      throw error;
+    })
+    .finally(() => {
+      renewing = null;
+    });
+  return renewing;
+};
+
 /**
  * Base HTTP client using Axios
  * Handles common configuration and error handling for API requests
@@ -95,24 +150,25 @@ export class HttpClient {
     // Add request interceptor for auth token and CSRF protection
     this.client.interceptors.request.use(
       async (config) => {
-        const token = tokenCookies.getToken();
+        let token = tokenCookies.getToken();
 
-        // Check if token exists and is valid
+        // Renew the hour-long sign-in before it runs out, so a shift is never cut short.
+        if (token && config.url !== API_ENDPOINTS.AUTH.SIGNIN && isTokenExpiringSoon(token, 5)) {
+          try {
+            token = await renewSession(this.baseUrl);
+          } catch (error) {
+            if (error instanceof SessionEndedError) {
+              if (isTokenExpired(token)) {
+                this.handleTokenExpiration(error.reason);
+                return Promise.reject(error);
+              }
+            } else if (isTokenExpired(token)) {
+              return Promise.reject(error);
+            }
+          }
+        }
+
         if (token) {
-          // Check if token is expired before making request
-          if (isTokenExpired(token)) {
-            console.warn("JWT token is expired, redirecting to login");
-            this.handleTokenExpiration();
-            return Promise.reject(new Error("Token expired"));
-          }
-
-          // Check if token is expiring soon (within 5 minutes)
-          if (isTokenExpiringSoon(token, 5)) {
-            console.warn("JWT token will expire soon, consider refreshing");
-            // You could implement a refresh token mechanism here
-            // For now, we'll just warn the user
-          }
-
           config.headers.Authorization = `Bearer ${token}`;
         }
 
@@ -153,21 +209,32 @@ export class HttpClient {
     // Add response interceptor for error handling
     this.client.interceptors.response.use(
       (response) => response,
-      (error) => {
+      async (error) => {
         // Handle token expiration or auth errors
         if (error.response?.status === 401) {
-          console.warn("Received 401 Unauthorized, token may be expired");
-
           const isLoginRequest = error.config?.url === API_ENDPOINTS.AUTH.SIGNIN;
           const isSessionRequest =
             error.config?.url === API_ENDPOINTS.AUTH.SESSION;
           const isOnLoginPage = window.location.pathname === "/login";
 
           if (!isLoginRequest && !isOnLoginPage && !isSessionRequest) {
-            const message = String(error.response?.data?.message || "");
-            this.handleTokenExpiration(
-              /another device/i.test(message) ? "signed_in_elsewhere" : "session_expired"
-            );
+            const reason = signOutReason(error.response?.data?.message);
+            // A sign-in that ran out mid-request: renew it and send the request once more.
+            if (reason === "session_expired" && error.config && !retriedRequests.has(error.config)) {
+              try {
+                const token = await renewSession(this.baseUrl);
+                retriedRequests.add(error.config);
+                error.config.headers.Authorization = `Bearer ${token}`;
+                return this.client.request(error.config);
+              } catch (renewError) {
+                if (!(renewError instanceof SessionEndedError)) {
+                  return Promise.reject(renewError);
+                }
+                this.handleTokenExpiration(renewError.reason);
+                return Promise.reject(renewError);
+              }
+            }
+            this.handleTokenExpiration(reason);
             return Promise.reject(new Error("Authentication required"));
           }
 

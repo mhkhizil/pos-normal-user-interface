@@ -1,7 +1,7 @@
 import axios from "axios";
 import { User } from "../../domain/entities/User";
 import { IAuthRepository } from "../../domain/repositories/IAuthRepository";
-import { HttpClient } from "../api/HttpClient";
+import { HttpClient, renewSession } from "../api/HttpClient";
 import { API_ENDPOINTS, API_CONFIG } from "../api/constants";
 import { isTokenExpired, tokenCookies } from "@/lib/cookies";
 import {
@@ -121,8 +121,12 @@ export class ApiAuthRepository implements IAuthRepository {
     }
 
     if (isTokenExpired(token)) {
-      this.clearPersistedAuthenticatedSession();
-      return null;
+      try {
+        await renewSession();
+      } catch {
+        this.clearPersistedAuthenticatedSession();
+        return null;
+      }
     }
 
     const cachedUser = this.restoreCachedUser();
@@ -268,6 +272,7 @@ export class ApiAuthRepository implements IAuthRepository {
     );
 
     this.persistAuthenticatedSession(accessToken, user);
+    if (session.refresh_token) tokenCookies.setRefreshToken(session.refresh_token);
 
     if (!tokenCookies.getToken()) {
       throw new Error("Unable to save login session in this browser");

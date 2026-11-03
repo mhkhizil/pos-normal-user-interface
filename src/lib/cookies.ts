@@ -46,6 +46,25 @@ export function decodeJWT(token: string): JWTPayload | null {
   }
 }
 
+const CLOCK_SKEW_KEY = "wms_clock_skew";
+
+/**
+ * The server's time in seconds. A tablet clock that is off would otherwise make
+ * a fresh token look expired, or an expired one look fresh.
+ */
+function serverNow(): number {
+  const skew =
+    typeof window === "undefined" ? 0 : Number(sessionStorage.getItem(CLOCK_SKEW_KEY)) || 0;
+  return Math.floor(Date.now() / 1000) + skew;
+}
+
+/** Learns how far this device's clock is from the server's, from a token it just issued. */
+function learnClockSkew(token: string): void {
+  const payload = decodeJWT(token);
+  if (typeof window === "undefined" || typeof payload?.iat !== "number") return;
+  sessionStorage.setItem(CLOCK_SKEW_KEY, String(payload.iat - Math.floor(Date.now() / 1000)));
+}
+
 /**
  * Check if JWT token is expired
  */
@@ -56,8 +75,7 @@ export function isTokenExpired(token: string): boolean {
     return false;
   }
 
-  const currentTime = Math.floor(Date.now() / 1000);
-  return payload.exp < currentTime;
+  return payload.exp < serverNow();
 }
 
 /**
@@ -70,9 +88,8 @@ export function isTokenExpiringSoon(
   const payload = decodeJWT(token);
   if (!payload || typeof payload.exp !== "number") return false;
 
-  const currentTime = Math.floor(Date.now() / 1000);
   const warningTime = warningMinutes * 60; // Convert to seconds
-  return payload.exp - currentTime < warningTime;
+  return payload.exp - serverNow() < warningTime;
 }
 
 /**
@@ -92,8 +109,7 @@ export function getTimeUntilExpiration(token: string): number {
   const payload = decodeJWT(token);
   if (!payload) return 0;
 
-  const currentTime = Math.floor(Date.now() / 1000);
-  return Math.max(0, payload.exp - currentTime);
+  return Math.max(0, payload.exp - serverNow());
 }
 
 export function clearAuthAndRedirectToLogin(reason?: string): void {
@@ -266,6 +282,7 @@ const secureStorage = new SecureStorage();
 const AUTH_TOKEN_KEY = "wms_token";
 const AUTH_USER_KEY = "wms_user";
 const CSRF_TOKEN_KEY = "wms_csrf_token";
+const REFRESH_TOKEN_KEY = "wms_refresh_token";
 
 const readSessionValue = (key: string): string | null => {
   if (typeof window === "undefined") return null;
@@ -289,7 +306,14 @@ const removeSessionValue = (key: string): void => {
 export const tokenCookies = {
   setToken: (token: string) => {
     writeSessionValue(AUTH_TOKEN_KEY, token);
+    learnClockSkew(token);
   },
+
+  setRefreshToken: (token: string) => {
+    writeSessionValue(REFRESH_TOKEN_KEY, token);
+  },
+
+  getRefreshToken: (): string | null => readSessionValue(REFRESH_TOKEN_KEY),
 
   getToken: (): string | null => {
     const fromSession = readSessionValue(AUTH_TOKEN_KEY);
@@ -348,6 +372,8 @@ export const tokenCookies = {
 
   clearAll: () => {
     removeSessionValue(AUTH_TOKEN_KEY);
+    removeSessionValue(REFRESH_TOKEN_KEY);
+    removeSessionValue(CLOCK_SKEW_KEY);
     removeSessionValue(AUTH_USER_KEY);
     removeSessionValue(CSRF_TOKEN_KEY);
     removeCookie(AUTH_TOKEN_KEY);

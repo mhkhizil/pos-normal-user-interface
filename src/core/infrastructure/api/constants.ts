@@ -36,6 +36,7 @@ export const API_ENDPOINTS = {
 
   AUTH: {
     SIGNIN: "/api/v1/auth/signin",
+    REFRESH: "/api/v1/auth/refresh",
     SESSION: "/api/v1/auth/session",
     PING: "/api/v1/auth/ping",
     SET_ACTIVE_BRANCH: "/api/v1/auth/set-active-branch",

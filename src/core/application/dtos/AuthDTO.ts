@@ -37,6 +37,8 @@ export interface AuthSessionUserDTO {
 
 export interface AuthSessionPayloadDTO {
   access_token: string;
+  /** Lasts 7 days; swapped at /auth/refresh before the hour-long access_token runs out. */
+  refresh_token?: string;
   user: AuthSessionUserDTO;
   activeBranch: string;
   access: BranchAccessDTO[];
