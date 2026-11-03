@@ -21,6 +21,8 @@ export interface VenueSetting {
   defaultTaxRate: { id: string; rate: number; isPriceInclusive: boolean } | null;
   /** Every item is taxed at the default taxes, whatever it says itself; extra fees are not. */
   taxAllItems: boolean;
+  /** Notes staff tap to add to an item ("No ice"), in the order set in Venue setup. */
+  quickNotes: string[];
   /** Service charge in basis points, 1000 for 10%; 0 for none. */
   serviceChargeBps: number;
   serviceChargeOn: { BAR: boolean; SPA: boolean; KTV: boolean };
@@ -119,6 +121,11 @@ export class ApiVenueSettingRepository {
       kdsDeleteSlips: data.kdsDeleteSlips !== false,
       defaultTaxRate: toDefaultTaxRate(rates),
       taxAllItems: data.taxAllItems === true,
+      quickNotes: Array.isArray(data.quickNotes)
+        ? data.quickNotes.filter(
+            (note): note is string => typeof note === "string" && note.trim() !== ""
+          )
+        : [],
       serviceChargeBps: Math.max(0, Number(data.serviceChargeBps) || 0),
       serviceChargeOn: {
         BAR: data.serviceChargeOnBar !== false,

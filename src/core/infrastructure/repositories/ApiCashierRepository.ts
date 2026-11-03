@@ -128,6 +128,7 @@ const normalizeUpsertLinePayload = (
     ...(payload.seatNumber !== undefined ? { seatNumber: payload.seatNumber } : {}),
     ...(payload.name ? { name: payload.name } : {}),
     ...(payload.hostessId !== undefined ? { hostessId: payload.hostessId } : {}),
+    ...(payload.note !== undefined ? { note: payload.note } : {}),
   };
 };
 
@@ -162,6 +163,7 @@ const normalizeSalesOrderLinePayload = (
     ...(payload.seatNumber !== undefined ? { seatNumber: payload.seatNumber } : {}),
     ...(payload.name ? { name: payload.name } : {}),
     ...(payload.hostessId !== undefined ? { hostessId: payload.hostessId } : {}),
+    ...(payload.note !== undefined ? { note: payload.note } : {}),
   };
 };
 
@@ -198,6 +200,7 @@ const normalizeSalesOrderPartialLinePayload = (
     }));
   }
   if (payload.hostessId !== undefined) normalized.hostessId = payload.hostessId;
+  if (payload.note !== undefined) normalized.note = payload.note;
 
   return normalized;
 };
@@ -296,6 +299,19 @@ const normalizeCheckoutPayload = (
     variantId: item.variantId,
     quantity: toDecimalString(Math.max(0.0001, toNumber(item.quantity) ?? 1)),
     lineDiscount: toDecimalString(item.lineDiscount ?? "0"),
+    ...(item.unitPrice !== undefined
+      ? { unitPrice: toDecimalString(toNumber(item.unitPrice) ?? 0) }
+      : {}),
+    ...(item.name ? { name: item.name } : {}),
+    ...(item.selectedModifiers?.length
+      ? {
+          selectedModifiers: item.selectedModifiers.map((modifier) => ({
+            modifierId: modifier.modifierId,
+          })),
+        }
+      : {}),
+    ...(item.hostessId ? { hostessId: item.hostessId } : {}),
+    ...(item.note ? { note: item.note } : {}),
   })),
   payments: normalizePaymentEntriesAsDecimals(payload.payments),
 });
@@ -488,6 +504,12 @@ const readLineCategoryId = (row: Record<string, unknown>) => {
   return value ? String(value) : undefined;
 };
 
+/** The note for the kitchen on a ticket line, as the server sends it with its order line. */
+const ticketLineNote = (row: Record<string, unknown>) => {
+  const note = asRecord(row.salesOrderLine)?.note;
+  return typeof note === "string" && note.trim() ? note.trim() : undefined;
+};
+
 /** The KTV lady who ordered a ticket line, as the server sends her with it. */
 const ticketLineOrderedBy = (row: Record<string, unknown>) => {
   const hostess = asRecord(asRecord(row.salesOrderLine)?.hostess);
@@ -507,6 +529,7 @@ const mapTicketLine = (entry: unknown) => {
     categoryId: readLineCategoryId(row),
     modifiers,
     orderedBy: ticketLineOrderedBy(row),
+    note: ticketLineNote(row),
   };
 };
 
@@ -661,6 +684,7 @@ const toKdsTicket = (item: Record<string, unknown>) => {
               ? String(line.modifierPrices)
               : undefined,
             orderedBy: ticketLineOrderedBy(line),
+            note: ticketLineNote(line),
             status: String(line.status || "PENDING"),
             bumpedAt: line.bumpedAt ? String(line.bumpedAt) : null,
             createdAt: String(line.createdAt || ""),
@@ -1518,6 +1542,7 @@ export class ApiCashierRepository implements ICashierRepository {
         categoryName: asName(item.categoryName) || asName(asRecord(item.product)?.categoryName),
         menuPrice: readLineMenuPrice(item),
         hostessId: item.hostessId ? String(item.hostessId) : undefined,
+        note: item.note ? String(item.note) : undefined,
         ...names,
       });
     });
@@ -1793,6 +1818,7 @@ export class ApiCashierRepository implements ICashierRepository {
       seatNumber:
         typeof item.seatNumber === "number" ? item.seatNumber : payload.seatNumber,
       categoryId: readLineCategoryId(item),
+      note: item.note ? String(item.note) : payload.note || undefined,
     });
   }
 

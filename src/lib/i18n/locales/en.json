@@ -2208,5 +2208,13 @@
     "perLoginShift": "Shift: per login",
     "managerApproval": "Manager approval",
     "managerRequired": "A manager must type their User ID and password."
+  },
+  "itemNote": {
+    "quickNotes": "Quick notes",
+    "label": "Note for the kitchen",
+    "placeholder": "Note for the kitchen…",
+    "button": "Note",
+    "title": "Note · {{name}}",
+    "save": "Save note"
   }
 }

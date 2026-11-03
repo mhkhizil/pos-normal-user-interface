@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { modifierPrintText } from "@/lib/printing/modifierText";
 import { Button } from "@/components/ui/Button";
 import { SalesOrderLine } from "@/core/domain/entities/Cashier";
 import { GuestCard, GuestWallet } from "@/core/domain/entities/GuestWallet";
@@ -72,6 +73,7 @@ export function SpaBillPanel({
   onAddExtraFee,
   orderers = [],
   onOrderedBy,
+  onNotePending,
   orderedByName = () => undefined,
   menuPrice = () => undefined,
   onEditLine,
@@ -128,6 +130,8 @@ export function SpaBillPanel({
   /** Hostesses with this room, who may order a dish or drink. */
   orderers?: { id: string; name: string }[];
   onOrderedBy?: (key: string, hostess?: { id: string; name: string }) => void;
+  /** Writes the note for the kitchen on an item not yet sent. */
+  onNotePending?: (key: string) => void;
   /** The hostess who ordered a menu line, when one did. */
   orderedByName?: (line: SalesOrderLine) => string | undefined;
   /** What the menu charges for one of a line, to show a price changed on this bill. */
@@ -376,6 +380,9 @@ export function SpaBillPanel({
                         {tr("orderedBy", { name: orderedByName(line) })}
                       </p>
                     ) : null}
+                    {line.note ? (
+                      <p className="break-words text-xs italic text-amber-200">* {line.note}</p>
+                    ) : null}
                     {editable || canEdit ? (
                       <div className="mt-1 flex items-center justify-between gap-1">
                         <div className="flex items-center gap-1">
@@ -465,7 +472,17 @@ export function SpaBillPanel({
               return (
               <div key={pendingKey(item)} className="space-y-1 py-1 text-sm">
                 <div className="flex items-start justify-between gap-2">
-                  <p className="min-w-0 break-words font-medium leading-snug">{item.name}</p>
+                  <div className="min-w-0">
+                    <p className="break-words font-medium leading-snug">{item.name}</p>
+                    {item.modifiers?.length ? (
+                      <p className="break-words text-xs text-slate-400">
+                        {modifierPrintText(item.modifiers).names}
+                      </p>
+                    ) : null}
+                    {item.note ? (
+                      <p className="break-words text-xs italic text-amber-200">* {item.note}</p>
+                    ) : null}
+                  </div>
                   <span className="shrink-0 text-right font-semibold">
                     {item.foc ? (
                       tr("free")
@@ -514,6 +531,20 @@ export function SpaBillPanel({
                 ) : null}
                 <div className="flex items-center gap-2">
                   <span className="flex-1 text-xs text-slate-500">{money(item.unitPrice)}</span>
+                  {onNotePending ? (
+                    <button
+                      type="button"
+                      aria-label={t("itemNote.title", { name: item.name })}
+                      className={`h-7 shrink-0 rounded border px-1.5 text-[10px] font-bold ${
+                        item.note
+                          ? "border-amber-300/60 text-amber-200"
+                          : "border-slate-700 text-slate-400"
+                      }`}
+                      onClick={() => onNotePending(pendingKey(item))}
+                    >
+                      📝 {t("itemNote.button")}
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     aria-pressed={Boolean(item.foc)}

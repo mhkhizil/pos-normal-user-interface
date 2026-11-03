@@ -22,7 +22,8 @@ import {
   findMemberCardPaymentMethod,
   LOCAL_MEMBER_CARD_METHOD_ID,
 } from "@/core/application/services/PosPaymentCatalog";
-import { PaymentMethod, Product, SalesOrderLine } from "@/core/domain/entities/Cashier";
+import { ChosenModifier, PaymentMethod, Product, SalesOrderLine } from "@/core/domain/entities/Cashier";
+import { ItemNoteDialog } from "@/components/notes/ItemNoteDialog";
 import { GuestCard, GuestWallet } from "@/core/domain/entities/GuestWallet";
 import { SpaRoom, SpaSession } from "@/core/domain/entities/Spa";
 import { useCashier } from "@/core/presentation/hooks/useCashier";
@@ -75,8 +76,10 @@ import {
   focPending,
   paidPending,
   PendingItem,
+  pendingKey,
   pendingOrderItems,
   setOrderedBy,
+  setPendingNote,
   pendingSaving,
   pendingTotal,
   toggleOneFoc,
@@ -290,7 +293,11 @@ export function SpaBoardPage({ kind = "spa" }: { kind?: RoomKind }) {
     variantId: string;
     unitPrice: number;
     quantity: number;
+    modifiers?: ChosenModifier[];
+    note?: string;
   } | null>(null);
+  // The pending row whose note for the kitchen is being written.
+  const [noteFor, setNoteFor] = useState<string | null>(null);
 
   const room = rooms.find((item) => item.id === selectedRoomId) || null;
   const isSpa = kind === "spa";
@@ -576,6 +583,7 @@ export function SpaBoardPage({ kind = "spa" }: { kind?: RoomKind }) {
         unitPrice: line.unitPrice?.trim() || undefined,
         modifiers: modifiers.names,
         modifierPrices: modifiers.prices,
+        ...(line.note ? { remarks: line.note } : {}),
       };
     });
   };
@@ -1488,6 +1496,9 @@ export function SpaBoardPage({ kind = "spa" }: { kind?: RoomKind }) {
           quantity: item.quantity.toFixed(4),
           unitPrice: item.unitPrice.toFixed(4),
           lineDiscount: "0.0000",
+          ...(item.modifiers?.length ? { selectedModifiers: item.modifiers } : {}),
+          ...(item.hostessId ? { hostessId: item.hostessId } : {}),
+          ...(item.note ? { note: item.note } : {}),
         });
         remaining = remaining.filter((entry) => entry !== item);
         added += item.quantity;
@@ -1679,7 +1690,13 @@ export function SpaBoardPage({ kind = "spa" }: { kind?: RoomKind }) {
     else requestCard("open");
   };
 
-  const handleAddProduct = async (product: Product, variantId: string, quantity: number) => {
+  const handleAddProduct = async (
+    product: Product,
+    variantId: string,
+    quantity: number,
+    modifiers?: ChosenModifier[],
+    note?: string
+  ) => {
     if (!session || billClosed) throw new Error(tr("errors.sessionRequired"));
     const variants = variantsByProductId[product.id]?.length
       ? variantsByProductId[product.id]
@@ -1687,20 +1704,26 @@ export function SpaBoardPage({ kind = "spa" }: { kind?: RoomKind }) {
     const variant = variants.find((item) => item.id === variantId) || variants[0];
     if (!variant) throw new Error(t("cashier.productMenu.noVariant"));
     setNotice(null);
-    const unitPrice = Number(product.basePrice || 0) + Number(variant.priceModifier || 0);
+    const unitPrice =
+      Number(product.basePrice || 0) + Number(variant.priceModifier || 0) + modifierExtra(modifiers);
+    const extras = {
+      ...(modifiers?.length ? { modifiers } : {}),
+      ...(note ? { note } : {}),
+    };
     if (!isSpa && product.askWhoServed) {
-      setHostessFor({ product, variantId: variant.id, unitPrice, quantity: Math.max(1, quantity) });
+      setHostessFor({
+        product,
+        variantId: variant.id,
+        unitPrice,
+        quantity: Math.max(1, quantity),
+        ...extras,
+      });
       return;
     }
     setPending((current) =>
       addPending(
         current,
-        {
-          variantId: variant.id,
-          productId: product.id,
-          name: product.name,
-          unitPrice: Number(product.basePrice || 0) + Number(variant.priceModifier || 0),
-        },
+        { variantId: variant.id, productId: product.id, name: product.name, unitPrice, ...extras },
         Math.max(1, quantity)
       )
     );
@@ -1708,7 +1731,7 @@ export function SpaBoardPage({ kind = "spa" }: { kind?: RoomKind }) {
 
   const pickHostess = (hostess: Hostess) => {
     if (!hostessFor) return;
-    const { product, variantId, unitPrice, quantity } = hostessFor;
+    const { product, variantId, unitPrice, quantity, modifiers, note } = hostessFor;
     const who = hostess.nickname || hostess.name;
     setPending((current) =>
       addPending(
@@ -1721,6 +1744,8 @@ export function SpaBoardPage({ kind = "spa" }: { kind?: RoomKind }) {
           hostessId: hostess.id,
           hostessName: who,
           service: true,
+          ...(modifiers?.length ? { modifiers } : {}),
+          ...(note ? { note } : {}),
         },
         quantity
       )
@@ -1843,10 +1868,13 @@ export function SpaBoardPage({ kind = "spa" }: { kind?: RoomKind }) {
       fee ? entry.unitPrice || "0.0000" : edit.unitPrice.toFixed(4);
     const hostessOf = (entry: SalesOrderLine) =>
       edit.orderedBy === undefined ? entry.hostessId : edit.orderedBy || undefined;
+    const noteOf = (entry: SalesOrderLine) =>
+      edit.note === undefined ? entry.note : edit.note || undefined;
     const unchanged = (entry: SalesOrderLine) =>
       Number(unitPrice(entry)) === Number(entry.unitPrice || 0) &&
       edit.foc === isGivenFree(entry) &&
-      (hostessOf(entry) || null) === (entry.hostessId || null);
+      (hostessOf(entry) || null) === (entry.hostessId || null) &&
+      (noteOf(entry) || null) === (entry.note || null);
     let left = edit.quantity;
     const plan: Array<{ entry: SalesOrderLine; take: number }> = [];
     for (const entry of [...group.lines].reverse()) {
@@ -1875,6 +1903,7 @@ export function SpaBoardPage({ kind = "spa" }: { kind?: RoomKind }) {
               ? "0.0000"
               : target.lineDiscount || "0.0000",
           ...(edit.orderedBy !== undefined ? { hostessId: edit.orderedBy } : {}),
+          ...(edit.note !== undefined ? { note: edit.note } : {}),
         });
       }
       setEditingRow(null);
@@ -2787,6 +2816,7 @@ export function SpaBoardPage({ kind = "spa" }: { kind?: RoomKind }) {
             onAddExtraFee={endBillOrderId && !paid ? () => setExtraFeeOpen(true) : undefined}
             orderers={orderers}
             onOrderedBy={(key, hostess) => setPending((current) => setOrderedBy(current, key, hostess))}
+            onNotePending={setNoteFor}
             orderedByName={orderedByName}
             menuPrice={menuPriceFor}
             onEditLine={endBillOrderId && !paid ? setEditingRow : undefined}
@@ -2838,6 +2868,8 @@ export function SpaBoardPage({ kind = "spa" }: { kind?: RoomKind }) {
                   onLoadVariants={fetchProductVariants}
                   onAdd={handleAddProduct}
                   onClose={closeRoomOrder}
+                  offerOptions
+                  quickNotes={venue.quickNotes}
                 />
               </div>
             </div>
@@ -3154,6 +3186,22 @@ export function SpaBoardPage({ kind = "spa" }: { kind?: RoomKind }) {
         />
       ) : null}
 
+      {noteFor ? (() => {
+        const item = pending.find((entry) => pendingKey(entry) === noteFor);
+        return item ? (
+          <ItemNoteDialog
+            name={item.name}
+            note={item.note}
+            quickNotes={venue.quickNotes}
+            onSave={(note) => {
+              setPending((current) => setPendingNote(current, noteFor, note));
+              setNoteFor(null);
+            }}
+            onClose={() => setNoteFor(null)}
+          />
+        ) : null;
+      })() : null}
+
       {editingRow ? (() => {
         const [line] = editingRow.lines;
         const isBooked =
@@ -3179,6 +3227,8 @@ export function SpaBoardPage({ kind = "spa" }: { kind?: RoomKind }) {
               fee || isBooked || serviceVariantIds.has(line.variantId) ? undefined : orderers
             }
             orderedBy={line.hostessId}
+            note={line.note}
+            quickNotes={fee || isBooked ? undefined : venue.quickNotes}
             canRemove={!isBooked}
             isBusy={isSavingLine}
             onSave={(edit) => void editRow(editingRow, edit)}

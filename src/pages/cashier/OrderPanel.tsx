@@ -66,6 +66,8 @@ export function groupOrderLines(
       line.selectedModifiers ?? null,
       // Each hostess's items stay hers.
       line.hostessId ?? "",
+      // A note for the kitchen keeps its item apart.
+      line.note ?? "",
       // A free item remains separate from the paid quantity of the same item.
       line.compReasonId ? "FOC" : "",
       line.status === "VOIDED" || line.status === "COMPED" ? line.status : "",
@@ -131,6 +133,8 @@ interface OrderPanelProps {
   menuPrice?: (line: SalesOrderLine) => number | undefined;
   /** Hostesses working now, who may have ordered an item. */
   orderers?: { id: string; name: string }[];
+  /** The shop's quick notes, offered when an item is edited. */
+  quickNotes?: string[];
   /** The hostess a line names, and whether she gave it (a service) or ordered it. */
   lineHostess?: (line: SalesOrderLine) => { name: string; gave: boolean } | undefined;
   /** Promotions running at this till, as the server tells them. */
@@ -222,6 +226,7 @@ export function OrderPanel({
   chargeOptions,
   menuPrice = () => undefined,
   orderers = [],
+  quickNotes = [],
   lineHostess = () => undefined,
   promotions = [],
   promotionDiscounts = {},
@@ -688,6 +693,9 @@ export function OrderPanel({
                         {t("cashier.orderPanel.orderedBy", { name: hostess.name })}
                       </p>
                     ) : null}
+                    {line.note ? (
+                      <p className="truncate text-xs italic text-slate-600">* {line.note}</p>
+                    ) : null}
                     <div className="mt-1 flex items-center justify-between gap-1">
                       <div className="flex items-center gap-1">
                         <button
@@ -1078,6 +1086,8 @@ export function OrderPanel({
             isFeeLine?.(editingLine) || lineHostess(editingLine)?.gave ? undefined : orderers
           }
           orderedBy={editingLine.hostessId}
+          note={editingLine.note}
+          quickNotes={isFeeLine?.(editingLine) ? undefined : quickNotes}
           isBusy={isLoading}
           onSave={(edit) => {
             onEditLine?.(editingLine, edit);

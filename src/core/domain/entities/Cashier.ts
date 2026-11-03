@@ -207,6 +207,8 @@ export class SalesOrderLine {
   hostessId?: string;
   /** Whether the product names the hostess who gave it, rather than who ordered it. */
   askWhoServed?: boolean;
+  /** A note for the kitchen or bar ("No ice"), printed under the item. */
+  note?: string;
   /** The promotions the line was sold under, as the server recorded them. */
   promotionNames?: string[];
   productName?: string;
@@ -260,6 +262,8 @@ export class KdsTicketLine {
   modifierPrices?: string;
   /** The KTV lady who ordered the line, named on the kitchen slip. */
   orderedBy?: string;
+  /** The note for the kitchen on the line. */
+  note?: string;
   status!: string;
   bumpedAt?: string | null;
   createdAt!: string;
@@ -431,6 +435,7 @@ export class KdsTicket {
     modifiers?: string;
     modifierPrices?: string;
     orderedBy?: string;
+    note?: string;
   }>;
   kdsTicketLines?: KdsTicketLine[];
   station?: KdsStation;

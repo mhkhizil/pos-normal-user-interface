@@ -290,6 +290,55 @@ describe("ProductMenu", () => {
     );
   });
 
+  it("sends the quick notes and typed note with the item's options", async () => {
+    const onAdd = vi.fn().mockResolvedValue(undefined);
+    const rice = new Product({
+      id: "product-rice",
+      tenantId: "t1",
+      name: "Fried rice",
+      basePrice: "8000.0000",
+      modifierGroups: [
+        {
+          id: "spice",
+          name: "Spice",
+          minSelection: 0,
+          maxSelection: 1,
+          isRequired: false,
+          modifiers: [{ id: "less", name: "Less spicy", priceDelta: "0", isDefault: false }],
+        },
+      ],
+    });
+    const riceVariant = new ProductVariant({ id: "variant-rice", productId: "product-rice" });
+
+    render(
+      <ProductMenu
+        products={[rice]}
+        variantsByProductId={{ "product-rice": [riceVariant] }}
+        onLoadVariants={vi.fn()}
+        onAdd={onAdd}
+        onClose={vi.fn()}
+        offerOptions
+        quickNotes={["No onion", "Less salt"]}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Fried rice/ }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getByPlaceholderText("itemNote.placeholder"), {
+      target: { value: "extra plate" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "No onion" }));
+    expect(within(dialog).getByRole("button", { name: "No onion" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    fireEvent.click(within(dialog).getByRole("button", { name: "cashier.productMenu.add" }));
+
+    await waitFor(() =>
+      expect(onAdd).toHaveBeenCalledWith(rice, "variant-rice", 1, undefined, "extra plate, No onion")
+    );
+  });
+
   it("asks for a required group before adding", async () => {
     const onAdd = vi.fn().mockResolvedValue(undefined);
     const tea = new Product({
