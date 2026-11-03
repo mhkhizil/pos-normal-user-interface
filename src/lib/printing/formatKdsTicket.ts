@@ -837,20 +837,24 @@ export function buildSaleReceiptLines(receipt: SaleReceipt): string[] {
   return toPlainLines(receiptLayout(receipt));
 }
 
+/** A kitchen line's options, then the KTV lady who ordered it. */
+export const withOrderedBy = (modifiers?: string, orderedBy?: string) =>
+  [modifiers?.trim(), orderedBy].filter(Boolean).join(", ") || undefined;
+
 export function kdsTicketPrintLines(ticket: KdsTicket): PrintLine[] {
   if (ticket.lines?.length) {
     return ticket.lines.map((line) => ({
       name: line.name,
       quantity: line.quantity,
       categoryId: line.categoryId,
-      modifiers: line.modifiers,
+      modifiers: withOrderedBy(line.modifiers, line.orderedBy),
       modifierPrices: line.modifierPrices,
     }));
   }
   return (ticket.kdsTicketLines || []).map((line) => ({
     name: line.productName || "Item",
     quantity: line.quantity || "1",
-    modifiers: line.kitchenModifiers,
+    modifiers: withOrderedBy(line.kitchenModifiers, line.orderedBy),
     modifierPrices: line.modifierPrices,
     seat: line.seatNumber ? String(line.seatNumber) : undefined,
   }));

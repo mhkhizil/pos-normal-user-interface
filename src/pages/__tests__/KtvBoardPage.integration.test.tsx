@@ -596,6 +596,34 @@ describe("KtvBoardPage", () => {
       );
     });
 
+    it("leaves the lady who ordered a drink off the check slip", async () => {
+      rooms = [busyRoom];
+      orderLinesState = [
+        { id: "line-1", variantId: "variant-ktv", quantity: "1", unitPrice: "40000" },
+        {
+          id: "line-2",
+          variantId: "variant-beer",
+          quantity: "1",
+          unitPrice: "4000",
+          hostessId: "hostess-snow",
+        },
+      ];
+      renderPage();
+      fireEvent.click(screen.getByRole("button", { name: /K1/ }));
+      expect(await screen.findAllByText("ktvPos.treatmentCharge")).toHaveLength(1);
+
+      fireEvent.click(screen.getByRole("button", { name: "ktvPos.endTreatment" }));
+      fireEvent.click(await screen.findByRole("button", { name: "ktvPos.printBill" }));
+
+      await waitFor(() => expect(mocks.printReceipt).toHaveBeenCalled());
+      const slip = mocks.printReceipt.mock.calls.at(-1)?.[0] as {
+        lines: Array<Record<string, unknown>>;
+      };
+      const beer = slip.lines.find((line) => line.name === "Myanmar Beer");
+      expect(beer).toBeDefined();
+      expect(beer?.modifiers).toBeUndefined();
+    });
+
     it("adds 2 hours and a 30 min block to a running room", async () => {
       rooms = [busyRoom];
       rentalsState = [ownRate, halfHour];

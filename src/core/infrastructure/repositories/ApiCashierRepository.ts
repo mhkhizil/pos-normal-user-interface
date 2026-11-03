@@ -488,6 +488,13 @@ const readLineCategoryId = (row: Record<string, unknown>) => {
   return value ? String(value) : undefined;
 };
 
+/** The KTV lady who ordered a ticket line, as the server sends her with it. */
+const ticketLineOrderedBy = (row: Record<string, unknown>) => {
+  const hostess = asRecord(asRecord(row.salesOrderLine)?.hostess);
+  const name = hostess?.nickname || hostess?.name;
+  return name ? String(name) : undefined;
+};
+
 const mapTicketLine = (entry: unknown) => {
   const row = asRecord(entry);
   if (!row) return null;
@@ -499,6 +506,7 @@ const mapTicketLine = (entry: unknown) => {
     quantity: String(row.quantity || "1"),
     categoryId: readLineCategoryId(row),
     modifiers,
+    orderedBy: ticketLineOrderedBy(row),
   };
 };
 
@@ -652,6 +660,7 @@ const toKdsTicket = (item: Record<string, unknown>) => {
             modifierPrices: line.modifierPrices
               ? String(line.modifierPrices)
               : undefined,
+            orderedBy: ticketLineOrderedBy(line),
             status: String(line.status || "PENDING"),
             bumpedAt: line.bumpedAt ? String(line.bumpedAt) : null,
             createdAt: String(line.createdAt || ""),

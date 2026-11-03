@@ -1050,6 +1050,35 @@ describe("ApiCashierRepository", () => {
     ]);
   });
 
+  it("names the KTV lady who ordered a kitchen ticket line", async () => {
+    const get = vi.fn().mockResolvedValue({
+      success: true,
+      data: {
+        id: "ticket-2",
+        kdsTicketLines: [
+          {
+            id: "line-1",
+            productName: "Fried rice",
+            quantity: "1.0000",
+            salesOrderLine: { hostess: { name: "Su Su", nickname: "Snow" } },
+          },
+          {
+            id: "line-2",
+            productName: "Soda",
+            quantity: "1.0000",
+            salesOrderLine: { hostess: null },
+          },
+        ],
+      },
+    });
+    const repository = new ApiCashierRepository({ get } as unknown as HttpClient);
+
+    const ticket = await repository.getKdsTicketById("ticket-2");
+
+    expect(ticket.kdsTicketLines?.map((line) => line.orderedBy)).toEqual(["Snow", undefined]);
+    expect(ticket.lines?.map((line) => line.orderedBy)).toEqual(["Snow", undefined]);
+  });
+
   it("creates a product and variant with decimal prices and matrix options", async () => {
     const post = vi.fn().mockImplementation((url: string) => {
       if (String(url).endsWith("/variants")) {

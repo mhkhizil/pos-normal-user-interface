@@ -258,6 +258,8 @@ export class KdsTicketLine {
   seatNumber?: number;
   kitchenModifiers?: string;
   modifierPrices?: string;
+  /** The KTV lady who ordered the line, named on the kitchen slip. */
+  orderedBy?: string;
   status!: string;
   bumpedAt?: string | null;
   createdAt!: string;
@@ -428,6 +430,7 @@ export class KdsTicket {
     categoryId?: string;
     modifiers?: string;
     modifierPrices?: string;
+    orderedBy?: string;
   }>;
   kdsTicketLines?: KdsTicketLine[];
   station?: KdsStation;
