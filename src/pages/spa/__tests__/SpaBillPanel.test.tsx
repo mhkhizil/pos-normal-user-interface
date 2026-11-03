@@ -313,4 +313,34 @@ describe("SpaBillPanel actions", () => {
 
     expect(screen.queryByRole("button", { name: "cashier.orderPanel.editItem" })).toBeNull();
   });
+
+  it("lets any lady on duty be named as who ordered, even with none in the room", () => {
+    const onOrderedBy = vi.fn();
+    renderPanel({
+      pending: [{ variantId: "beer-v", productId: "beer", name: "Tiger Beer", unitPrice: 6000, quantity: 1 }],
+      orderers: [],
+      allLadies: [{ id: "hnin", name: "Hnin", nickname: null, inRoom: null }],
+      onOrderedBy,
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "spa.allLadies" }));
+    fireEvent.click(screen.getByRole("button", { name: "Hnin" }));
+
+    expect(onOrderedBy).toHaveBeenCalledWith("beer-v", { id: "hnin", name: "Hnin" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("shows a lady picked from all ladies as the chosen one on the row", () => {
+    renderPanel({
+      pending: [
+        { variantId: "beer-v", productId: "beer", name: "Tiger Beer", unitPrice: 6000, quantity: 1, hostessId: "hnin", hostessName: "Hnin" },
+      ],
+      orderers: [{ id: "mya", name: "Mya" }],
+      allLadies: [],
+      onOrderedBy: vi.fn(),
+    });
+
+    expect(screen.getByRole("button", { name: "Hnin" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Mya" })).toHaveAttribute("aria-pressed", "false");
+  });
 });

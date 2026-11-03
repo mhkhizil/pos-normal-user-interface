@@ -2797,6 +2797,7 @@ export function SpaBoardPage({ kind = "spa" }: { kind?: RoomKind }) {
             extraFeeLabel={t("cashier.extraFee.button")}
             onAddExtraFee={endBillOrderId && !paid ? () => setExtraFeeOpen(true) : undefined}
             orderers={orderers}
+            allLadies={isSpa ? undefined : workingHostesses}
             onOrderedBy={(key, hostess) => setPending((current) => setOrderedBy(current, key, hostess))}
             orderedByName={orderedByName}
             menuPrice={menuPriceFor}
@@ -3189,6 +3190,12 @@ export function SpaBoardPage({ kind = "spa" }: { kind?: RoomKind }) {
             orderers={
               fee || isBooked || serviceVariantIds.has(line.variantId) ? undefined : orderers
             }
+            allLadies={
+              isSpa || fee || isBooked || serviceVariantIds.has(line.variantId)
+                ? undefined
+                : workingHostesses
+            }
+            roomNumber={room?.roomNumber}
             orderedBy={line.hostessId}
             canRemove={!isBooked}
             isBusy={isSavingLine}
