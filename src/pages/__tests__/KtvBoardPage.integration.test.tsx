@@ -55,6 +55,7 @@ let venueState: {
 
 const mocks = vi.hoisted(() => ({
   approve: vi.fn(),
+  fetchProduct: vi.fn(),
   fetchBoard: vi.fn(),
   fetchOrderBill: vi.fn(),
   getQuote: vi.fn(),
@@ -257,6 +258,7 @@ vi.mock("@/core/presentation/hooks/useCashier", () => ({
     discountReasons: [],
     fetchDiscountReasons: () => Promise.resolve(),
     fetchProducts: mocks.noop,
+    fetchProduct: mocks.fetchProduct,
     fetchProductVariants: mocks.noop,
     fetchPaymentMethods: mocks.noop,
   }),
@@ -854,6 +856,56 @@ describe("KtvBoardPage", () => {
           "ktv-session-1",
           expect.objectContaining({
             items: [{ variantId: "variant-beer", quantity: 1, note: "No ice" }],
+          })
+        )
+      );
+    });
+
+    it("offers the options the menu list leaves out, as the cashier does", async () => {
+      rooms = [busyRoom];
+      mocks.fetchProduct.mockResolvedValueOnce({
+        id: "product-beer",
+        name: "Myanmar Beer",
+        categoryName: "Beer",
+        basePrice: "4000.0000",
+        modifierGroups: [
+          {
+            id: "ice",
+            name: "Ice",
+            minSelection: 0,
+            maxSelection: 1,
+            isRequired: false,
+            modifiers: [{ id: "extra-ice", name: "Extra ice", priceDelta: "500.0000", isDefault: false }],
+          },
+        ],
+      });
+      mocks.chargeItems.mockResolvedValue({
+        charged: "4500.0000",
+        balanceAfter: "195500.0000",
+        quote: paidQuote,
+      });
+      renderPage();
+      fireEvent.click(screen.getByRole("button", { name: /K1/ }));
+      fireEvent.click(await screen.findByRole("button", { name: /Myanmar Beer/ }));
+
+      const dialog = await screen.findByRole("dialog");
+      fireEvent.click(within(dialog).getByRole("radio", { name: /Extra ice/ }));
+      fireEvent.click(within(dialog).getByRole("button", { name: "cashier.productMenu.add" }));
+      expect(mocks.fetchProduct).toHaveBeenCalledWith("product-beer");
+
+      fireEvent.click(await screen.findByRole("button", { name: /ktvPos.addToBill/ }));
+      await tapCard();
+
+      await waitFor(() =>
+        expect(mocks.chargeItems).toHaveBeenCalledWith(
+          "ktv-session-1",
+          expect.objectContaining({
+            items: [
+              expect.objectContaining({
+                variantId: "variant-beer",
+                selectedModifiers: [{ modifierId: "extra-ice" }],
+              }),
+            ],
           })
         )
       );

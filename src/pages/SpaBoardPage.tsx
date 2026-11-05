@@ -199,6 +199,7 @@ export function SpaBoardPage({ kind = "spa" }: { kind?: RoomKind }) {
     discountReasons,
     fetchDiscountReasons,
     fetchProducts,
+    fetchProduct,
     fetchProductVariants,
     fetchPaymentMethods,
     listKdsTickets,
@@ -2882,6 +2883,7 @@ export function SpaBoardPage({ kind = "spa" }: { kind?: RoomKind }) {
                   onClose={closeRoomOrder}
                   offerOptions
                   quickNotes={venue.quickNotes}
+                  onLoadProduct={fetchProduct}
                 />
               </div>
             </div>

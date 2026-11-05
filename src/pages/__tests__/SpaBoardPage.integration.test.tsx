@@ -249,6 +249,7 @@ vi.mock("@/core/presentation/hooks/useCashier", () => ({
     fetchDiscountReasons: () => Promise.resolve(),
     fetchProducts: mocks.noop,
     fetchProductVariants: mocks.noop,
+    fetchProduct: () => Promise.resolve(undefined),
     fetchPaymentMethods: mocks.noop,
     listKdsTickets: mocks.listKdsTickets,
   }),
