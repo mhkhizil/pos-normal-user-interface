@@ -1043,7 +1043,7 @@ const ownTaxes = (item: Record<string, unknown>) => {
   };
 };
 
-const toModifierGroups = (value: unknown): ModifierGroup[] =>
+export const toModifierGroups = (value: unknown): ModifierGroup[] =>
   Array.isArray(value)
     ? value.map(asRecord).flatMap((group) =>
         group?.id

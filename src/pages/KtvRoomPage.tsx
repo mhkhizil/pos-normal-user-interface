@@ -120,6 +120,7 @@ export function KtvRoomPage() {
             name: item.name,
             basePrice: item.price,
             imageUrl: item.imageUrl,
+            modifierGroups: item.modifierGroups,
           })
         );
         variantsByProductId[productId] = [
@@ -231,7 +232,8 @@ export function KtvRoomPage() {
     product: Product,
     variantId: string,
     quantity: number,
-    modifiers?: ChosenModifier[]
+    modifiers?: ChosenModifier[],
+    note?: string
   ) => {
     if (!session?.salesOrderId || !wallet) {
       throw new Error(t("ktv.errors.sessionRequired"));
@@ -250,6 +252,7 @@ export function KtvRoomPage() {
       unitPrice: unitPrice.toFixed(4),
       lineDiscount: "0.0000",
       ...(modifiers?.length ? { selectedModifiers: modifiers } : {}),
+      ...(note ? { note } : {}),
     });
     setLastAddedLineId(line.id);
     const [nextQuote, nextTabletSession] = await Promise.all([
@@ -658,6 +661,7 @@ export function KtvRoomPage() {
             }
             onAdd={handleAddProduct}
             offerOptions
+            quickNotes={roomTabletMenu?.quickNotes}
             onClose={() => setSearchParams({ view: "orders" })}
           />
         ) : (

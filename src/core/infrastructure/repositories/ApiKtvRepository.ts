@@ -1,3 +1,4 @@
+import { toModifierGroups } from "./ApiCashierRepository";
 import {
   ChargeKtvItemsDTO,
   CloseKtvSessionDTO,
@@ -172,6 +173,7 @@ const toRoomTabletMenu = (value: unknown) => {
   const item = asRecord(value);
   return new RoomTabletMenu({
     roomNumber: String(item.roomNumber || ""),
+    quickNotes: Array.isArray(item.quickNotes) ? item.quickNotes.map(String) : [],
     categories: Array.isArray(item.categories)
       ? item.categories.map((category) => {
           const row = asRecord(category);
@@ -183,6 +185,8 @@ const toRoomTabletMenu = (value: unknown) => {
                   const menuRow = asRecord(menuItem);
                   return new RoomTabletMenuItem({
                     variantId: String(menuRow.variantId || ""),
+                    productId: menuRow.productId ? String(menuRow.productId) : undefined,
+                    modifierGroups: toModifierGroups(menuRow.modifierGroups),
                     name: String(menuRow.name || ""),
                     price: String(menuRow.price || "0.0000"),
                     imageUrl: menuRow.imageUrl

@@ -1,3 +1,4 @@
+import type { ModifierGroup } from "./Cashier";
 import type { ReceiptCashier } from "@/lib/printing/cashier";
 export type KtvRoomStatus =
   | "AVAILABLE"
@@ -111,12 +112,15 @@ export class KtvSessionQuote {
 
 export class RoomTabletMenuItem {
   variantId!: string;
+  /** The product, for its options; missing from an older server. */
+  productId?: string;
   name!: string;
   price!: string;
   imageUrl?: string;
+  modifierGroups!: ModifierGroup[];
 
   constructor(data: Partial<RoomTabletMenuItem>) {
-    Object.assign(this, data);
+    Object.assign(this, { modifierGroups: [], ...data });
   }
 }
 
@@ -133,9 +137,11 @@ export class RoomTabletMenuCategory {
 export class RoomTabletMenu {
   roomNumber!: string;
   categories!: RoomTabletMenuCategory[];
+  /** Notes staff tap onto an item ("No ice"), in order. */
+  quickNotes!: string[];
 
   constructor(data: Partial<RoomTabletMenu>) {
-    Object.assign(this, { categories: [], ...data });
+    Object.assign(this, { categories: [], quickNotes: [], ...data });
   }
 }
 

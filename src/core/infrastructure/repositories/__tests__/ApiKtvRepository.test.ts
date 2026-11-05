@@ -180,4 +180,52 @@ describe("ApiKtvRepository", () => {
       lines: [{ name: "Myanmar Beer", quantity: "6.0000" }],
     });
   });
+
+  it("reads each room menu item's options and the shop's quick notes", async () => {
+    const get = vi.fn().mockResolvedValueOnce({
+      data: {
+        roomNumber: "VIP1",
+        quickNotes: ["No ice", "Less sugar"],
+        categories: [
+          {
+            categoryId: "c1",
+            name: "Drinks",
+            items: [
+              {
+                variantId: "variant-1",
+                productId: "product-1",
+                name: "Myanmar Beer",
+                price: "3500.0000",
+                modifierGroups: [
+                  {
+                    id: "ice",
+                    name: "Ice",
+                    minSelection: 0,
+                    maxSelection: 1,
+                    isRequired: false,
+                    modifiers: [{ id: "extra", name: "Extra ice", priceDelta: "500.0000", isDefault: false }],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    });
+    const repository = new ApiKtvRepository({ get } as unknown as HttpClient);
+
+    const menu = await repository.getRoomTabletMenu();
+
+    expect(menu.quickNotes).toEqual(["No ice", "Less sugar"]);
+    expect(menu.categories[0].items[0]).toMatchObject({
+      productId: "product-1",
+      modifierGroups: [
+        {
+          id: "ice",
+          maxSelection: 1,
+          modifiers: [{ id: "extra", name: "Extra ice", priceDelta: "500.0000", isDefault: false }],
+        },
+      ],
+    });
+  });
 });
