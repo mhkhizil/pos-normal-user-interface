@@ -27,6 +27,8 @@ export function SpaRoomTile({
   const warning = getKtvWarning(session?.endsAt, nowMs);
   const status = String(room.status || "AVAILABLE").toUpperCase();
   const isCleaning = status === "CLEANING";
+  // In use with nobody in it (its party was deleted): it can only be freed.
+  const isStuck = status === "OCCUPIED" && !session;
   const isOutOfService = status === "OUT_OF_SERVICE";
   const tone =
     warning.level === "EXPIRED"
@@ -107,7 +109,7 @@ export function SpaRoomTile({
           </p>
         ) : null}
       </button>
-      {isCleaning ? (
+      {isCleaning || isStuck ? (
         <button
           type="button"
           className="mt-4 w-full rounded border border-slate-600 px-3 py-2 text-sm font-semibold text-slate-100 hover:bg-white/5"

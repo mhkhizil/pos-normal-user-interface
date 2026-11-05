@@ -2770,11 +2770,30 @@ export function SpaBoardPage({ kind = "spa" }: { kind?: RoomKind }) {
             </form>
           ) : null}
           {openSessions.length === 0 && room.status !== "AVAILABLE" ? (
-            <p className="text-slate-400">
-              {tr("roomNotAvailable", {
-                status: tr(`status.${room.status.toLowerCase()}`),
-              })}
-            </p>
+            <div className="space-y-3">
+              <p className="text-slate-400">
+                {tr("roomNotAvailable", {
+                  status: tr(`status.${room.status.toLowerCase()}`),
+                })}
+              </p>
+              {room.status === "OCCUPIED" || room.status === "CLEANING" ? (
+                <Button
+                  variant="outline"
+                  isLoading={isLoading}
+                  onClick={async () => {
+                    setActionError(null);
+                    try {
+                      await markRoomReady(room.id);
+                      await fetchBoard();
+                    } catch (caught) {
+                      setActionError(caught instanceof Error ? caught.message : tr("errors.saveRoom"));
+                    }
+                  }}
+                >
+                  {tr("markReady")}
+                </Button>
+              ) : null}
+            </div>
           ) : null}
         </div>
       ) : null}
