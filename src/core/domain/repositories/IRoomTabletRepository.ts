@@ -8,7 +8,6 @@ import {
   TabletChargeResult,
   TabletHistoryEntry,
   TabletMenu,
-  TabletMenuCategory,
   TabletRoom,
   TabletStartResult,
   TabletVisit,
