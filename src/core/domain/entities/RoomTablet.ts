@@ -1,3 +1,4 @@
+import type { ModifierGroup } from "./Cashier";
 export type VisitOrderStatus = "RECEIVED" | "PREPARING" | "READY" | "SERVED" | "REFUNDED";
 
 export interface TabletGuest {
@@ -53,15 +54,25 @@ export interface TabletHistoryEntry {
 
 export interface TabletMenuItem {
   variantId: string;
+  /** The product, for its options; missing from an older server. */
+  productId?: string;
   name: string;
   price: string;
   imageUrl: string | null;
+  /** Options to ask for; none adds the item with one tap. */
+  modifierGroups: ModifierGroup[];
 }
 
 export interface TabletMenuCategory {
   categoryId: string;
   name: string;
   items: TabletMenuItem[];
+}
+
+export interface TabletMenu {
+  categories: TabletMenuCategory[];
+  /** Notes to tap onto an item ("No ice"), in order. */
+  quickNotes: string[];
 }
 
 export interface TabletChargeResult {

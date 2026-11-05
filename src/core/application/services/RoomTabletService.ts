@@ -3,6 +3,7 @@ import {
   RoomOrderView,
   TabletChargeResult,
   TabletHistoryEntry,
+  TabletMenu,
   TabletMenuCategory,
   TabletRoom,
   TabletStartResult,
@@ -28,7 +29,7 @@ export class RoomTabletService implements IRoomTabletService {
     return this.repository.getHistory(cardUid.trim());
   }
 
-  getMenu(): Promise<TabletMenuCategory[]> {
+  getMenu(): Promise<TabletMenu> {
     return this.repository.getMenu();
   }
 

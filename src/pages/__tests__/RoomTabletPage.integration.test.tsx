@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { RoomTabletPage } from "../RoomTabletPage";
 
@@ -52,7 +52,7 @@ const visit = {
   ],
 };
 const menu = [
-  { categoryId: "c-1", name: "Soft Drinks", items: [{ variantId: "v-cola", name: "Coca-Cola", price: "1500.0000", imageUrl: null }] },
+  { categoryId: "c-1", name: "Soft Drinks", items: [{ variantId: "v-cola", name: "Coca-Cola", price: "1500.0000", imageUrl: null, modifierGroups: [] }] },
 ];
 let state: Record<string, unknown> = {};
 
@@ -84,7 +84,7 @@ describe("RoomTabletPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     window.localStorage.setItem("room-tablet-room", JSON.stringify({ roomId: "room-2", roomNumber: "S2" }));
-    state = { visit: null, menu, history: [], rooms: [freeRoom] };
+    state = { visit: null, menu, quickNotes: [], history: [], rooms: [freeRoom] };
     mocks.loadRooms.mockResolvedValue([freeRoom]);
     mocks.loadMenu.mockResolvedValue(menu);
     mocks.loadVisit.mockImplementation(async () => {
@@ -130,6 +130,56 @@ describe("RoomTabletPage", () => {
       )
     );
     expect(await screen.findByText("tablet.started")).toBeInTheDocument();
+  });
+
+  it("asks for an item's options and a note before it goes in the cart", async () => {
+    const withOptions = [
+      {
+        categoryId: "c-1",
+        name: "Soft Drinks",
+        items: [
+          {
+            variantId: "v-cola",
+            name: "Coca-Cola",
+            price: "1500.0000",
+            imageUrl: null,
+            modifierGroups: [
+              {
+                id: "ice",
+                name: "Ice",
+                minSelection: 0,
+                maxSelection: 1,
+                isRequired: false,
+                modifiers: [{ id: "extra", name: "Extra ice", priceDelta: "500.0000", isDefault: false }],
+              },
+            ],
+          },
+        ],
+      },
+    ];
+    state = { ...state, menu: withOptions, quickNotes: ["No straw"] };
+    render(page);
+    fireEvent.click(screen.getByRole("button", { name: "tablet.startTreatment" }));
+    fireEvent.click(screen.getByRole("button", { name: /Coca-Cola/ }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Coca-Cola" });
+    fireEvent.click(within(dialog).getByRole("radio", { name: /Extra ice/ }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "No straw" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: /tablet.addItem/ }));
+    expect(screen.getByText("Extra ice · * No straw")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "tablet.payAndStart" }));
+    tap();
+
+    await waitFor(() =>
+      expect(mocks.startRoom).toHaveBeenCalledWith(
+        expect.objectContaining({
+          items: [
+            { variantId: "v-cola", quantity: 1, selectedModifiers: [{ modifierId: "extra" }], note: "No straw" },
+          ],
+        })
+      )
+    );
   });
 
   it("opens the visit of the card that took the room", async () => {

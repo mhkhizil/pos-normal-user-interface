@@ -1,3 +1,4 @@
+import { toModifierGroups } from "./ApiCashierRepository";
 import {
   TabletExtendDTO,
   TabletOrderDTO,
@@ -7,6 +8,7 @@ import {
   RoomOrderView,
   TabletChargeResult,
   TabletHistoryEntry,
+  TabletMenu,
   TabletMenuCategory,
   TabletRoom,
   TabletStartResult,
@@ -146,9 +148,10 @@ export class ApiRoomTabletRepository implements IRoomTabletRepository {
     });
   }
 
-  async getMenu(): Promise<TabletMenuCategory[]> {
+  async getMenu(): Promise<TabletMenu> {
     const response = await this.httpClient.get<unknown>(API_ENDPOINTS.TABLET.MENU);
-    return asList(asRecord(unwrap(response)).categories).map((value) => {
+    const body = asRecord(unwrap(response));
+    const categories = asList(body.categories).map((value): TabletMenuCategory => {
       const category = asRecord(value);
       return {
         categoryId: text(category.categoryId),
@@ -160,10 +163,13 @@ export class ApiRoomTabletRepository implements IRoomTabletRepository {
             name: text(item.name),
             price: money(item.price),
             imageUrl: orNull(item.imageUrl),
+            ...(item.productId ? { productId: text(item.productId) } : {}),
+            modifierGroups: toModifierGroups(item.modifierGroups),
           };
         }),
       };
     });
+    return { categories, quickNotes: asList(body.quickNotes).map((note) => String(note)) };
   }
 
   async getRooms(): Promise<TabletRoom[]> {

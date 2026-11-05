@@ -1866,6 +1866,7 @@
     },
     "yourOrder": "Your order",
     "cartEmpty": "Tap items to add them.",
+    "addItem": "Add · {{amount}}",
     "less": "Less",
     "more": "More",
     "total": "Total",
@@ -2232,6 +2233,7 @@
     "managerRequired": "A manager must type their User ID and password."
   },
   "itemNote": {
+    "short": "Note",
     "quickNotes": "Quick notes",
     "label": "Note for the kitchen",
     "placeholder": "Note for the kitchen…",

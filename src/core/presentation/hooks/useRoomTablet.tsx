@@ -17,6 +17,7 @@ export function useRoomTablet() {
   const service = container.resolve<IRoomTabletService>("roomTabletService");
   const [visit, setVisit] = useState<TabletVisit | null>(null);
   const [menu, setMenu] = useState<TabletMenuCategory[]>([]);
+  const [quickNotes, setQuickNotes] = useState<string[]>([]);
   const [history, setHistory] = useState<TabletHistoryEntry[]>([]);
   const [rooms, setRooms] = useState<TabletRoom[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -53,8 +54,9 @@ export function useRoomTablet() {
     () =>
       run(async () => {
         const result = await service.getMenu();
-        setMenu(result);
-        return result;
+        setMenu(result.categories);
+        setQuickNotes(result.quickNotes);
+        return result.categories;
       }),
     [run, service]
   );
@@ -98,6 +100,7 @@ export function useRoomTablet() {
   return {
     visit,
     menu,
+    quickNotes,
     history,
     rooms,
     isLoading,

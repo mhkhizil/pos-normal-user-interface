@@ -12,6 +12,18 @@ import { useAuth } from "@/core/presentation/hooks/useAuth";
 import { useCardCapture } from "@/core/presentation/hooks/useCardCapture";
 import { useRoomTablet } from "@/core/presentation/hooks/useRoomTablet";
 import { getKtvWarning } from "@/lib/ktv/session";
+import { ItemNoteDialog } from "@/components/notes/ItemNoteDialog";
+import { modifierPrintText } from "@/lib/printing/modifierText";
+import {
+  addToCart as addCartEntry,
+  chargeItems,
+  countOf,
+  renote,
+  TabletCart,
+  TabletCartEntry,
+  unitPriceOf,
+} from "@/lib/tablet/cart";
+import { TabletItemDialog } from "./tablet/TabletItemDialog";
 
 type Screen = "idle" | "start" | "home" | "menu" | "time" | "history" | "done";
 type PayFor = "start" | "order" | "time";
@@ -53,6 +65,7 @@ export function RoomTabletPage() {
   const {
     visit,
     menu,
+    quickNotes,
     history,
     rooms,
     isLoading,
@@ -70,7 +83,9 @@ export function RoomTabletPage() {
   const [screen, setScreen] = useState<Screen>("idle");
   const [cardUid, setCardUid] = useState("");
   const [typedUid, setTypedUid] = useState("");
-  const [cart, setCart] = useState<Record<string, number>>({});
+  const [cart, setCart] = useState<TabletCart>({});
+  const [optionsFor, setOptionsFor] = useState<TabletMenuItem | null>(null);
+  const [noteFor, setNoteFor] = useState<string | null>(null);
   const [categoryId, setCategoryId] = useState("");
   const [sessions, setSessions] = useState(1);
   const [payFor, setPayFor] = useState<PayFor | null>(null);
@@ -91,17 +106,20 @@ export function RoomTabletPage() {
   const cartLines = useMemo(
     () =>
       Object.entries(cart)
-        .map(([variantId, quantity]) => ({
-          item: items.find((entry) => entry.variantId === variantId),
-          quantity,
+        .map(([key, entry]) => ({
+          key,
+          entry,
+          item: items.find((menuItem) => menuItem.variantId === entry.variantId),
+          quantity: entry.quantity,
         }))
-        .filter((line): line is { item: TabletMenuItem; quantity: number } =>
-          Boolean(line.item && line.quantity > 0)
+        .filter(
+          (line): line is { key: string; entry: TabletCartEntry; item: TabletMenuItem; quantity: number } =>
+            Boolean(line.item && line.quantity > 0)
         ),
     [cart, items]
   );
   const cartTotal = cartLines.reduce(
-    (sum, line) => sum + Number(line.item.price) * line.quantity,
+    (sum, line) => sum + unitPriceOf(line.item.price, line.entry.modifiers) * line.quantity,
     0
   );
   const sessionPrice = Number(tabletRoom?.sessionPrice || myRoom?.sessionPrice || 0);
@@ -222,10 +240,7 @@ export function RoomTabletPage() {
           cardUid: uid,
           roomId: setup.roomId,
           sessions,
-          items: cartLines.map((line) => ({
-            variantId: line.item.variantId,
-            quantity: line.quantity,
-          })),
+          items: chargeItems(cart),
           idempotencyKey: payKey.current,
           deviceName,
         });
@@ -242,10 +257,7 @@ export function RoomTabletPage() {
         const result = await placeOrder({
           cardUid: uid,
           sessionId: myRoom.sessionId,
-          items: cartLines.map((line) => ({
-            variantId: line.item.variantId,
-            quantity: line.quantity,
-          })),
+          items: chargeItems(cart),
           idempotencyKey: payKey.current,
           deviceName,
         });
@@ -306,15 +318,22 @@ export function RoomTabletPage() {
     if (!menu.length) await loadMenu();
   };
 
-  const addToCart = (variantId: string, delta: number) => {
+  const changeRow = (key: string, delta: number) => {
     touch();
     setCart((current) => {
-      const next = Math.max(0, (current[variantId] || 0) + delta);
-      const copy = { ...current };
-      if (next) copy[variantId] = next;
-      else delete copy[variantId];
-      return copy;
+      const row = current[key];
+      return row ? addCartEntry(current, row, delta) : current;
     });
+  };
+
+  /** An item with options asks for them first; any other goes in with one tap. */
+  const tapItem = (item: TabletMenuItem) => {
+    touch();
+    if (item.modifierGroups.length) {
+      setOptionsFor(item);
+      return;
+    }
+    setCart((current) => addCartEntry(current, { variantId: item.variantId, modifiers: [] }, 1));
   };
 
   const exitTablet = () => {
@@ -500,7 +519,7 @@ export function RoomTabletPage() {
               key={item.variantId}
               type="button"
               className="overflow-hidden rounded-lg border border-slate-800 bg-slate-900 text-left"
-              onClick={() => addToCart(item.variantId, 1)}
+              onClick={() => tapItem(item)}
             >
               {item.imageUrl ? (
                 <img src={item.imageUrl} alt="" className="h-24 w-full object-cover" />
@@ -512,9 +531,9 @@ export function RoomTabletPage() {
               <span className="block p-3">
                 <span className="block font-semibold">{item.name}</span>
                 <span className="text-teal-300">{money(item.price)}</span>
-                {cart[item.variantId] ? (
+                {countOf(cart, item.variantId) ? (
                   <span className="float-right rounded bg-teal-700 px-2 text-sm">
-                    × {cart[item.variantId]}
+                    × {countOf(cart, item.variantId)}
                   </span>
                 ) : null}
               </span>
@@ -525,29 +544,48 @@ export function RoomTabletPage() {
     </div>
   );
 
-  const cartList = cartLines.map((line) => (
-    <div key={line.item.variantId} className="flex items-center gap-2 text-sm">
-      <span className="min-w-0 flex-1 truncate">{line.item.name}</span>
-      <button
-        type="button"
-        aria-label={t("tablet.less")}
-        className="h-8 w-8 rounded bg-slate-800"
-        onClick={() => addToCart(line.item.variantId, -1)}
-      >
-        −
-      </button>
-      <span className="w-6 text-center">{line.quantity}</span>
-      <button
-        type="button"
-        aria-label={t("tablet.more")}
-        className="h-8 w-8 rounded bg-slate-800"
-        onClick={() => addToCart(line.item.variantId, 1)}
-      >
-        +
-      </button>
-      <span className="w-16 text-right">{money(Number(line.item.price) * line.quantity)}</span>
-    </div>
-  ));
+  const cartList = cartLines.map((line) => {
+    const options = modifierPrintText(line.entry.modifiers).names;
+    return (
+      <div key={line.key} className="text-sm">
+        <div className="flex items-center gap-2">
+          <span className="min-w-0 flex-1 truncate">{line.item.name}</span>
+          <button
+            type="button"
+            aria-label={t("tablet.less")}
+            className="h-8 w-8 rounded bg-slate-800"
+            onClick={() => changeRow(line.key, -1)}
+          >
+            −
+          </button>
+          <span className="w-6 text-center">{line.quantity}</span>
+          <button
+            type="button"
+            aria-label={t("tablet.more")}
+            className="h-8 w-8 rounded bg-slate-800"
+            onClick={() => changeRow(line.key, 1)}
+          >
+            +
+          </button>
+          <span className="w-16 text-right">
+            {money(unitPriceOf(line.item.price, line.entry.modifiers) * line.quantity)}
+          </span>
+        </div>
+        <div className="flex items-start gap-2 pl-1 text-xs text-slate-400">
+          <span className="min-w-0 flex-1 break-words">
+            {[options, line.entry.note ? `* ${line.entry.note}` : ""].filter(Boolean).join(" · ")}
+          </span>
+          <button
+            type="button"
+            className="shrink-0 rounded px-1 text-slate-300 hover:bg-white/5"
+            onClick={() => setNoteFor(line.key)}
+          >
+            ✎ {t("itemNote.short")}
+          </button>
+        </div>
+      </div>
+    );
+  });
 
   return (
     <main
@@ -766,6 +804,33 @@ export function RoomTabletPage() {
           </div>
         ) : null}
       </section>
+      {optionsFor ? (
+        <TabletItemDialog
+          item={optionsFor}
+          quickNotes={quickNotes}
+          onClose={() => setOptionsFor(null)}
+          onAdd={({ modifiers, note, quantity }) => {
+            touch();
+            setCart((current) =>
+              addCartEntry(current, { variantId: optionsFor.variantId, modifiers, note }, quantity)
+            );
+            setOptionsFor(null);
+          }}
+        />
+      ) : null}
+      {noteFor && cart[noteFor] ? (
+        <ItemNoteDialog
+          name={items.find((item) => item.variantId === cart[noteFor].variantId)?.name || ""}
+          note={cart[noteFor].note}
+          quickNotes={quickNotes}
+          onClose={() => setNoteFor(null)}
+          onSave={(note) => {
+            touch();
+            setCart((current) => renote(current, noteFor, note));
+            setNoteFor(null);
+          }}
+        />
+      ) : null}
     </main>
   );
 }
