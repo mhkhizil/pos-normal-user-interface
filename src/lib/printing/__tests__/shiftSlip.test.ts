@@ -152,4 +152,22 @@ describe("the shift report slip", () => {
     expect(text).toMatch(/U Kyaw SO-1234\s+85,000/);
     expect(text.indexOf("KITCHEN")).toBeLessThan(text.indexOf("NET"));
   });
+
+  it("says 1 order, not 1 orders, for a single take-away", () => {
+    const text = buildSaleReceiptLines({
+      ...shiftSlip({
+        ...summary,
+        groups: {
+          sections: [],
+          rooms: { rows: [], hours: 0, amount: 0 },
+          takeaway: { orders: 1, amount: 18000 },
+          credit: { rows: [], amount: 0 },
+        },
+      }),
+      template: shiftTemplate(),
+    }).join("\n");
+
+    expect(text).toMatch(/Total 1 order\s+18,000/);
+    expect(text).not.toContain("1 orders");
+  });
 });

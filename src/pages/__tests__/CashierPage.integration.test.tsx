@@ -246,6 +246,18 @@ vi.mock("@/core/presentation/hooks/useWorkingHostesses", () => ({
   }),
 }));
 
+vi.mock("../cashier/CreditCustomerPicker", () => ({
+  CreditCustomerPicker: ({ onPick }: { onPick: (customer: unknown) => void }) => (
+    <button
+      type="button"
+      onClick={() =>
+        onPick({ id: "kyaw", name: "U Kyaw", maxCreditLimit: "200000", currentCreditBalance: "85000" })
+      }
+    >
+      pick U Kyaw
+    </button>
+  ),
+}));
 vi.mock("@/core/presentation/hooks/useCashier", () => ({
   useCashier: () => ({
     products: [
@@ -261,6 +273,7 @@ vi.mock("@/core/presentation/hooks/useCashier", () => ({
     selectedOrderLines: selectedOrderLinesState,
     paymentMethods: [
       { id: "cash", tenantId: "tenant-1", name: "Cash" },
+      { id: "credit", tenantId: "tenant-1", name: "House credit", kind: "CUSTOMER_CREDIT" },
     ],
     diningZones: [],
     diningTables: [table],
@@ -518,6 +531,34 @@ describe("CashierPage integration", () => {
       expect(mocks.fetchOrderBill).not.toHaveBeenCalled();
       expect(mocks.checkoutTableSession).not.toHaveBeenCalled();
       expect(mocks.settleOrder).not.toHaveBeenCalled();
+    });
+
+    it("asks whose account a credit payment goes on and sends that customer", async () => {
+      productState = { ...product, basePrice: "100.0000", taxRate: 10 };
+      await startDirectBill();
+      fireEvent.click(screen.getByRole("button", { name: /HOUSE CREDIT/ }));
+      fireEvent.click(await screen.findByRole("button", { name: "pick U Kyaw" }));
+      expect(screen.getByText("U Kyaw")).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "cashier.confirmPay" }));
+
+      await waitFor(() => expect(mocks.processCheckout).toHaveBeenCalled());
+      expect(mocks.processCheckout.mock.calls[0][0]).toMatchObject({
+        customerId: "kyaw",
+        payments: [{ paymentMethodId: "credit" }],
+      });
+    });
+
+    it("does not pay on credit before a customer is chosen", async () => {
+      productState = { ...product, basePrice: "100.0000", taxRate: 10 };
+      await startDirectBill();
+      fireEvent.click(screen.getByRole("button", { name: /HOUSE CREDIT/ }));
+      await screen.findByRole("button", { name: "pick U Kyaw" });
+
+      fireEvent.click(screen.getByRole("button", { name: "cashier.confirmPay" }));
+
+      expect(await screen.findByText("cashier.credit.required")).toBeInTheDocument();
+      expect(mocks.processCheckout).not.toHaveBeenCalled();
     });
 
     it("keeps both direct checkout charges enabled and omits flags until a choice is made", async () => {

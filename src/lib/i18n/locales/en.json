@@ -511,6 +511,20 @@
       "logout": "Logout"
     },
     "cashier": {
+    "credit": {
+      "title": "Whose account?",
+      "search": "Name or phone…",
+      "none": "No customer has a credit account. Turn it on for a customer on the Customers page.",
+      "owes": "Owes {{amount}}",
+      "available": "available {{amount}}",
+      "limitReached": "limit reached",
+      "hint": "Only customers with a credit account. A new customer is added on the Customers page.",
+      "onAccountOf": "On account of:",
+      "change": "Change",
+      "choose": "Choose whose account this goes on",
+      "required": "Choose whose account this bill goes on.",
+      "loadFailed": "Couldn't load customers"
+    },
       "shortcutKey": "Shortcut key",
       "editShortcut": "Edit shortcut key",
       "behaviorTitle": "Cashier behavior",

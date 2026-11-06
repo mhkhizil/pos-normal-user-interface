@@ -378,6 +378,8 @@ export interface TableSessionCheckoutDTO {
   includeServiceCharge?: boolean;
   discountReasonId?: string;
   totalDiscount?: number;
+  /** Whose account a credit tender goes on. */
+  customerId?: string;
 }
 
 export interface FireKdsDTO {

@@ -45,6 +45,13 @@ interface PaymentViewProps {
   splitTenders: SplitPaymentTenderDTO[];
   isLoading?: boolean;
   memberCardLookup?: MemberCardLookupProps;
+  /** A credit tender is picked: whose account it goes on. */
+  creditAccount?: {
+    customerName?: string;
+    owes?: number;
+    available?: number;
+    onChange: () => void;
+  };
   onSelectMethod: (methodId: string) => void;
   onPaymentAmountChange: (value: string) => void;
   onOpenSplit: () => void;
@@ -140,6 +147,7 @@ export function PaymentView({
   splitTenders,
   isLoading,
   memberCardLookup,
+  creditAccount,
   onSelectMethod,
   onPaymentAmountChange,
   onOpenSplit,
@@ -503,6 +511,44 @@ export function PaymentView({
           >
             {t("cashier.payment.reopenCardLookup")}
           </button>
+        ) : null}
+        {creditAccount ? (
+          <div className="mt-2 rounded border border-amber-400/40 bg-[#111111] px-3 py-2 text-sm">
+            {creditAccount.customerName ? (
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-slate-300">
+                    {t("cashier.credit.onAccountOf")}{" "}
+                    <span className="font-semibold text-white">{creditAccount.customerName}</span>
+                  </p>
+                  <p className="text-xs text-slate-400">
+                    {t("cashier.credit.owes", {
+                      amount: Number(creditAccount.owes || 0).toLocaleString(undefined, { maximumFractionDigits: 0 }),
+                    })}
+                    {" · "}
+                    {t("cashier.credit.available", {
+                      amount: Number(creditAccount.available || 0).toLocaleString(undefined, { maximumFractionDigits: 0 }),
+                    })}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="shrink-0 rounded px-2 py-1 text-xs font-semibold text-blue-300 hover:bg-white/5"
+                  onClick={creditAccount.onChange}
+                >
+                  {t("cashier.credit.change")}
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="min-h-11 w-full text-left font-semibold text-amber-200"
+                onClick={creditAccount.onChange}
+              >
+                {t("cashier.credit.choose")}
+              </button>
+            )}
+          </div>
         ) : null}
         <div className="mt-2 grid grid-cols-2 content-start gap-2 min-[1100px]:min-h-40 min-[1100px]:flex-1 min-[1100px]:shrink-0 min-[1100px]:overflow-y-auto">
           {sortedMethods.map((method) => {

@@ -42,7 +42,9 @@ export function shiftSlip(summary: ShiftSummary): SaleReceipt {
           })),
           total: {
             left: block.total.count
-              ? `Total ${block.total.count}${UNIT[block.unit]}`
+              ? `Total ${block.total.count}${
+                  block.unit === "orders" && block.total.count === "1" ? " order" : UNIT[block.unit]
+                }`
               : "Total",
             right: amountText(block.total.amount),
           },

@@ -44,6 +44,9 @@ import { useWorkingHostesses } from "@/core/presentation/hooks/useWorkingHostess
 import type { Hostess } from "@/core/domain/entities/Hostess";
 import { SplitItemsDialog, SplitTarget } from "./cashier/SplitItemsDialog";
 import { PaymentView } from "./cashier/PaymentView";
+import { CreditCustomerPicker } from "./cashier/CreditCustomerPicker";
+import type { Customer } from "@/core/domain/entities/Customer";
+import { creditAvailable, isCreditMethod } from "@/lib/pos/credit";
 import { ProductMenu } from "./cashier/ProductMenu";
 import { TableChargesBar } from "./cashier/TableChargesBar";
 import { useTableCharges } from "@/core/presentation/hooks/useTableCharges";
@@ -1074,6 +1077,13 @@ export function CashierPage() {
   const selectedPaymentMethod = checkoutPaymentMethods.find(
     (method) => method.id === paymentMethodId
   );
+  // A bill put on account names whose account: picked when a credit method is tapped.
+  const [creditCustomer, setCreditCustomer] = useState<Customer | null>(null);
+  const [creditPickerOpen, setCreditPickerOpen] = useState(false);
+  const creditMethodIds = useMemo(
+    () => new Set(checkoutPaymentMethods.filter(isCreditMethod).map((method) => method.id)),
+    [checkoutPaymentMethods]
+  );
   const memberCardSelected = Boolean(
     selectedPaymentMethod && isMemberCardPaymentMethod(selectedPaymentMethod)
   );
@@ -1183,6 +1193,7 @@ export function CashierPage() {
     if (!wasPay || activeView === "pay") return;
     setIsSplitMode(false);
     setSplitTenders([]);
+    setCreditCustomer(null);
   }, [activeView]);
 
   useEffect(() => {
@@ -2281,6 +2292,14 @@ export function CashierPage() {
         (payment) =>
           memberCardMethod && payment.paymentMethodId === memberCardMethod.id
       );
+      const usesCredit = checkoutPayments.some((payment) =>
+        creditMethodIds.has(payment.paymentMethodId)
+      );
+      if (usesCredit && !creditCustomer) {
+        setCreditPickerOpen(true);
+        throw new Error(t("cashier.credit.required"));
+      }
+      const onAccount = usesCredit && creditCustomer ? { customerId: creditCustomer.id } : {};
       if (usesMemberCard) {
         if (!memberCard || !memberWallet) {
           throw new Error(t("cashier.errors.memberCardRequired"));
@@ -2350,6 +2369,7 @@ export function CashierPage() {
         await checkoutTableSession(selectedOrderSession.id, {
           posSessionId: context.posSessionId,
           payments: checkoutPayments,
+          ...onAccount,
           ...(tip > 0 ? { tipAmount: tip } : {}),
           ...(discountReasonId ? { discountReasonId } : {}),
           ...(orderDiscount > 0 ? { totalDiscount: orderDiscount } : {}),
@@ -2364,6 +2384,7 @@ export function CashierPage() {
         await settleOrder(selectedOrder.id, {
           payments: checkoutPayments,
           posSessionId: context.posSessionId,
+          ...onAccount,
           ...(tip > 0 ? { tipAmount: toMoney(tip) } : {}),
           ...(orderDiscount > 0 ? { totalDiscount: toMoney(orderDiscount) } : {}),
           ...(discountReasonId ? { discountReasonId } : {}),
@@ -2402,6 +2423,7 @@ export function CashierPage() {
           } : {}),
           items: allocateOrderDiscountToLines(activeOrderLines, orderDiscount, isFeeLine),
           payments: checkoutPayments,
+          ...onAccount,
         });
       }
 
@@ -3593,46 +3615,80 @@ export function CashierPage() {
             </div>
           </div>
         ) : activeView === "pay" ? (
-          <PaymentView
-            methods={checkoutPaymentMethods}
-            selectedMethodId={paymentMethodId}
-            paymentAmount={paymentAmount}
-            total={orderTotal}
-            breakdown={breakdown}
-            billOptions={{
-              includeTax: billOptions.includeTax,
-              includeServiceCharge: billOptions.includeServiceCharge,
-              isLoading: billOptions.isLoading,
-              disabled: isLoading || isPosSessionLoading || isConfirmingPayment,
-              error: billOptions.error,
-              onChange: chooseBillOption,
-            }}
-            isSplitMode={isSplitMode}
-            splitTenders={splitTenders}
-            isLoading={isLoading || isPosSessionLoading || isConfirmingPayment || billOptions.isLoading || Boolean(billOptions.error)}
-            memberCardLookup={{
-              cardUid: memberCardUid,
-              guestName: memberWallet?.guestName,
-              walletNumber: memberWallet?.walletNumber,
-              balance: memberWallet?.balance,
-              status: memberWallet?.status,
-              error: memberCardError,
-              isLoading: isMemberCardLoading,
-              nfcSupported,
-              nfcActive,
-              nfcError,
-              lastUid,
-              onEnableNfc: () => void startNfc(),
-              onCardUidChange: setMemberCardUid,
-              onDetect: () => void handleLookupMemberCard(),
-            }}
-            onSelectMethod={setPaymentMethodId}
-            onPaymentAmountChange={setPaymentAmount}
-            onOpenSplit={handleOpenSplit}
-            onClosePay={handleClosePay}
-            onAddTender={handleAddSplitTender}
-            onRemoveTender={handleRemoveSplitTender}
-          />
+          <>
+            <PaymentView
+              methods={checkoutPaymentMethods}
+              selectedMethodId={paymentMethodId}
+              paymentAmount={paymentAmount}
+              total={orderTotal}
+              breakdown={breakdown}
+              billOptions={{
+                includeTax: billOptions.includeTax,
+                includeServiceCharge: billOptions.includeServiceCharge,
+                isLoading: billOptions.isLoading,
+                disabled: isLoading || isPosSessionLoading || isConfirmingPayment,
+                error: billOptions.error,
+                onChange: chooseBillOption,
+              }}
+              isSplitMode={isSplitMode}
+              splitTenders={splitTenders}
+              isLoading={isLoading || isPosSessionLoading || isConfirmingPayment || billOptions.isLoading || Boolean(billOptions.error)}
+              memberCardLookup={{
+                cardUid: memberCardUid,
+                guestName: memberWallet?.guestName,
+                walletNumber: memberWallet?.walletNumber,
+                balance: memberWallet?.balance,
+                status: memberWallet?.status,
+                error: memberCardError,
+                isLoading: isMemberCardLoading,
+                nfcSupported,
+                nfcActive,
+                nfcError,
+                lastUid,
+                onEnableNfc: () => void startNfc(),
+                onCardUidChange: setMemberCardUid,
+                onDetect: () => void handleLookupMemberCard(),
+              }}
+              onSelectMethod={(methodId) => {
+                setPaymentMethodId(methodId);
+                if (creditMethodIds.has(methodId) && !creditCustomer) setCreditPickerOpen(true);
+              }}
+              creditAccount={
+                creditMethodIds.has(paymentMethodId) ||
+                splitTenders.some((tender) => creditMethodIds.has(tender.paymentMethodId))
+                  ? {
+                      customerName: creditCustomer?.name,
+                      owes: creditCustomer ? Number(creditCustomer.currentCreditBalance || 0) : undefined,
+                      available: creditCustomer ? creditAvailable(creditCustomer) : undefined,
+                      onChange: () => setCreditPickerOpen(true),
+                    }
+                  : undefined
+              }
+              onPaymentAmountChange={setPaymentAmount}
+              onOpenSplit={handleOpenSplit}
+              onClosePay={handleClosePay}
+              onAddTender={handleAddSplitTender}
+              onRemoveTender={handleRemoveSplitTender}
+            />
+            {creditPickerOpen ? (
+              <CreditCustomerPicker
+                amount={
+                  isSplitMode
+                    ? splitTenders
+                        .filter((tender) => creditMethodIds.has(tender.paymentMethodId))
+                        .reduce((sum, tender) => sum + Number(tender.amount || 0), 0) ||
+                      Number(paymentAmount || 0)
+                    : Number(orderTotal || 0)
+                }
+                onPick={(customer) => {
+                  setCreditCustomer(customer);
+                  setCreditPickerOpen(false);
+                  setLocalError(null);
+                }}
+                onCancel={() => setCreditPickerOpen(false)}
+              />
+            ) : null}
+          </>
         ) : activeView === "multi-order" && activeTableId ? (
           <MultiOrderingView
             tableLabel={activeTableLabel}
