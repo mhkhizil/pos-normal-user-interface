@@ -863,6 +863,26 @@ describe("CashierPage integration", () => {
     );
   });
 
+  it("prints the subtotal without the tax added on top", async () => {
+    selectedOrderLinesState = [
+      { ...orderLine, quantity: "2.0000", unitPrice: "100.0000", taxAmount: "10.0000" },
+    ];
+    selectedOrderState = { ...order, grandTotal: "0.0000", subtotal: "0.0000" };
+    render(
+      <MemoryRouter initialEntries={["/cashier?view=pay"]}>
+        <CashierPage />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "cashier.printFinance" }));
+
+    await waitFor(() =>
+      expect(mocks.printReceipt).toHaveBeenCalledWith(
+        expect.objectContaining({ subtotal: "200.0000", tax: "10.0000" })
+      )
+    );
+  });
+
   it("prints duplicate item lines as one combined quantity on the receipt", async () => {
     selectedOrderLinesState = [
       orderLine,
