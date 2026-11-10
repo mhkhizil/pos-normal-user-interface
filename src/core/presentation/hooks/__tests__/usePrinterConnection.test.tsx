@@ -2,7 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { KitchenPrintPlan } from "@/lib/printing/routeKitchenPrint";
 import { savePrinterBinding } from "@/lib/pos/printerBindingStorage";
-import { defaultPrintTemplateSettings, PrintTemplate } from "@/core/domain/entities/PrintTemplate";
+import {
+  defaultPrintTemplateSettings,
+  PrintTemplate,
+} from "@/core/domain/entities/PrintTemplate";
 import {
   KdsStation,
   KdsTicket,
@@ -105,7 +108,7 @@ describe("usePrinterConnection print templates", () => {
         sectors: ["KDS"],
         lastVerifiedAt: "",
       },
-      true
+      true,
     );
 
   const kitchenTemplate = (settings = defaultPrintTemplateSettings()) =>
@@ -134,11 +137,14 @@ describe("usePrinterConnection print templates", () => {
     const builtIn = defaultPrintTemplateSettings();
     builtIn.item.itemTextScale = "2H2W";
     builtIn.item.otherTextScale = "2H2W";
-    mocks.resolveTemplate.mockResolvedValue({ source: "BUILTIN", settings: builtIn });
+    mocks.resolveTemplate.mockResolvedValue({
+      source: "BUILTIN",
+      settings: builtIn,
+    });
     mocks.listTemplates.mockResolvedValue({ templates: [kitchenTemplate()] });
 
     const { result } = renderHook(() =>
-      usePrinterConnection(tenantId, registerId, "location-1")
+      usePrinterConnection(tenantId, registerId, "location-1"),
     );
     await waitFor(() => expect(result.current.isConnected).toBe(true));
     await act(async () => {
@@ -157,10 +163,13 @@ describe("usePrinterConnection print templates", () => {
   it("keeps the server's own template when it is a saved one", async () => {
     const own = defaultPrintTemplateSettings();
     own.item.itemTextScale = "2H1W";
-    mocks.resolveTemplate.mockResolvedValue({ source: "LOCATION", settings: own });
+    mocks.resolveTemplate.mockResolvedValue({
+      source: "LOCATION",
+      settings: own,
+    });
 
     const { result } = renderHook(() =>
-      usePrinterConnection(tenantId, registerId, "location-1")
+      usePrinterConnection(tenantId, registerId, "location-1"),
     );
     await waitFor(() => expect(result.current.isConnected).toBe(true));
     await act(async () => {
@@ -180,7 +189,7 @@ describe("usePrinterConnection print templates", () => {
     mocks.listTemplates.mockResolvedValue({ templates: [kitchenTemplate()] });
 
     const { result } = renderHook(() =>
-      usePrinterConnection(tenantId, registerId, "location-1")
+      usePrinterConnection(tenantId, registerId, "location-1"),
     );
     await waitFor(() => expect(result.current.isConnected).toBe(true));
     await act(async () => {
@@ -214,7 +223,7 @@ describe("usePrinterConnection station routing", () => {
         sectors: ["KDS"],
         lastVerifiedAt: "",
       },
-      true
+      true,
     );
   });
 
@@ -233,7 +242,7 @@ describe("usePrinterConnection station routing", () => {
           ],
         },
         [drinkStation],
-        { requireStationRouting: true }
+        { requireStationRouting: true },
       );
     });
 
@@ -257,7 +266,7 @@ describe("usePrinterConnection station routing", () => {
           ],
         },
         [drinkStation],
-        { requireStationRouting: true }
+        { requireStationRouting: true },
       );
     });
 
@@ -271,18 +280,35 @@ describe("usePrinterConnection station routing", () => {
     ]);
   });
 
-  it("falls back to the KDS printer when strict routing is not required", async () => {
+  it("keeps an item no saved station printer takes off every other printer", async () => {
     const { result } = renderConnection();
     await waitFor(() => expect(result.current.isConnected).toBe(true));
 
+    let plan!: KitchenPrintPlan;
     await act(async () => {
-      await result.current.printKitchen(
+      plan = await result.current.printKitchen(
         {
           title: "KITCHEN",
           lines: [{ name: "Coffee", quantity: "1", categoryId: "drink" }],
         },
-        [drinkStation]
+        [drinkStation],
       );
+    });
+
+    expect(plan.unrouted.map((line) => line.name)).toEqual(["Coffee"]);
+    expect(mocks.printKitchen).not.toHaveBeenCalled();
+  });
+
+  it("prints on the till's KDS printer when no stations are set up", async () => {
+    mocks.listStations.mockResolvedValue({ stations: [] });
+    const { result } = renderConnection();
+    await waitFor(() => expect(result.current.isConnected).toBe(true));
+
+    await act(async () => {
+      await result.current.printKitchen({
+        title: "KITCHEN",
+        lines: [{ name: "Coffee", quantity: "1", categoryId: "drink" }],
+      });
     });
 
     expect(mocks.printKitchen).toHaveBeenCalledTimes(1);
@@ -311,7 +337,7 @@ describe("usePrinterConnection station routing", () => {
         sectors: ["KDS"],
         lastVerifiedAt: "",
       },
-      false
+      false,
     );
 
   it("reads the outlet's stations for a caller that has none to hand", async () => {
@@ -337,7 +363,7 @@ describe("usePrinterConnection station routing", () => {
     });
 
     const { result } = renderHook(() =>
-      usePrinterConnection(tenantId, registerId, "location-1")
+      usePrinterConnection(tenantId, registerId, "location-1"),
     );
     await waitFor(() => expect(result.current.isConnected).toBe(true));
 
@@ -346,7 +372,11 @@ describe("usePrinterConnection station routing", () => {
         title: "Room order 4",
         place: "Room S2",
         lines: [
-          { name: "Chinese fried noodle", quantity: "1", categoryId: "cat-chinese" },
+          {
+            name: "Chinese fried noodle",
+            quantity: "1",
+            categoryId: "cat-chinese",
+          },
           { name: "Beer", quantity: "2", categoryId: "cat-drinks" },
         ],
       });
@@ -360,6 +390,152 @@ describe("usePrinterConnection station routing", () => {
       ["Chinese KDS", ["Chinese fried noodle"]],
       ["Beverage KDS", ["Beer"]],
     ]);
+  });
+
+  it("prints a waiter tablet's order only at the stations whose printers this till has", async () => {
+    // The Chinese station's printer is not saved here: its noodle must not land
+    // on the Beverage printer, which prints only the beer.
+    bind("Beverage KDS", "printer-drinks", "10.4.0.2");
+    mocks.listStations.mockResolvedValue({
+      stations: [
+        {
+          id: "st-chinese",
+          name: "Chinese KDS",
+          printerIds: ["printer-chinese"],
+          routingRules: { categoryIds: ["cat-chinese"] },
+        },
+        {
+          id: "st-drinks",
+          name: "Beverage KDS",
+          printerIds: ["printer-drinks"],
+          routingRules: { categoryIds: ["cat-drinks"] },
+        },
+      ],
+    });
+    const { result } = renderHook(() =>
+      usePrinterConnection(tenantId, registerId, "location-1"),
+    );
+    await waitFor(() => expect(result.current.isConnected).toBe(true));
+
+    let plan!: KitchenPrintPlan;
+    await act(async () => {
+      plan = await result.current.printKitchen({
+        title: "Room order 5",
+        lines: [
+          {
+            name: "Chinese fried noodle",
+            quantity: "1",
+            categoryId: "cat-chinese",
+          },
+          { name: "Beer", quantity: "2", categoryId: "cat-drinks" },
+        ],
+      });
+    });
+
+    expect(
+      mocks.printKitchen.mock.calls.map(([binding, slip]) => [
+        binding.displayName,
+        slip.lines.map((line: { name: string }) => line.name),
+      ]),
+    ).toEqual([["Beverage KDS", ["Beer"]]]);
+    expect(plan.missingPrinterRoutes.map((route) => route.stationName)).toEqual(
+      ["Chinese KDS"],
+    );
+  });
+
+  it("prints at a station's printer from the back office when this till never saved it", async () => {
+    bind("Beverage KDS", "printer-drinks", "10.4.0.2");
+    mocks.listPrinters.mockResolvedValue({
+      printers: [
+        {
+          id: "printer-chinese",
+          name: "Chinese printer",
+          ipAddress: "10.4.0.1",
+          port: 9100,
+          sectors: ["KDS"],
+          isActive: true,
+        },
+        {
+          id: "printer-drinks",
+          name: "Beverage printer",
+          ipAddress: "10.4.0.2",
+          port: 9100,
+          sectors: ["KDS"],
+          isActive: true,
+        },
+      ],
+    });
+    mocks.listStations.mockResolvedValue({
+      stations: [
+        {
+          id: "st-chinese",
+          name: "Chinese KDS",
+          printerIds: ["printer-chinese"],
+          routingRules: { categoryIds: ["cat-chinese"] },
+        },
+        {
+          id: "st-drinks",
+          name: "Beverage KDS",
+          printerIds: ["printer-drinks"],
+          routingRules: { categoryIds: ["cat-drinks"] },
+        },
+      ],
+    });
+    const { result } = renderHook(() =>
+      usePrinterConnection(tenantId, registerId, "location-1"),
+    );
+    await waitFor(() => expect(result.current.isConnected).toBe(true));
+
+    await act(async () => {
+      await result.current.printKitchen({
+        title: "Room order 7",
+        lines: [
+          {
+            name: "Chinese fried noodle",
+            quantity: "1",
+            categoryId: "cat-chinese",
+          },
+          { name: "Beer", quantity: "2", categoryId: "cat-drinks" },
+        ],
+      });
+    });
+
+    expect(
+      mocks.printKitchen.mock.calls.map(([binding, slip]) => [
+        binding.host,
+        slip.lines.map((line: { name: string }) => line.name),
+      ]),
+    ).toEqual([
+      ["10.4.0.1", ["Chinese fried noodle"]],
+      ["10.4.0.2", ["Beer"]],
+    ]);
+  });
+
+  it("prints nothing elsewhere when none of the stations' printers is saved on this till", async () => {
+    bind("Till KDS", "printer-till", "10.4.0.9");
+    mocks.listStations.mockResolvedValue({
+      stations: [
+        {
+          id: "st-drinks",
+          name: "Beverage KDS",
+          printerIds: ["printer-drinks"],
+          routingRules: { categoryIds: ["cat-drinks"] },
+        },
+      ],
+    });
+    const { result } = renderHook(() =>
+      usePrinterConnection(tenantId, registerId, "location-1"),
+    );
+    await waitFor(() => expect(result.current.isConnected).toBe(true));
+
+    await act(async () => {
+      await result.current.printKitchen({
+        title: "Room order 6",
+        lines: [{ name: "Beer", quantity: "2", categoryId: "cat-drinks" }],
+      });
+    });
+
+    expect(mocks.printKitchen).not.toHaveBeenCalled();
   });
 });
 
@@ -377,7 +553,7 @@ describe("usePrinterConnection paid bill copies", () => {
         sectors,
         lastVerifiedAt: "",
       },
-      false
+      false,
     );
 
   const printed = () =>
@@ -432,7 +608,11 @@ describe("usePrinterConnection paid bill copies", () => {
     withCopies(["CUSTOMER", "ORDER_RECEIPT"]);
     const { result } = renderConnection();
     await act(async () => {
-      await result.current.printReceipt({ ...sale, sale: undefined, title: "Top-up" });
+      await result.current.printReceipt({
+        ...sale,
+        sale: undefined,
+        title: "Top-up",
+      });
     });
     expect(printed()).toEqual([["Till", "Top-up", "CHECKOUT"]]);
   });
@@ -480,7 +660,7 @@ describe("usePrinterConnection KDS ticket modifiers", () => {
         sectors: ["KDS"],
         lastVerifiedAt: "",
       },
-      true
+      true,
     );
   });
 
@@ -566,13 +746,13 @@ describe("usePrinterConnection KTV slips", () => {
         sectors: ["KDS"],
         lastVerifiedAt: "",
       },
-      true
+      true,
     );
   });
 
   it("prints the room under the tenant's name instead of a fixed brand", async () => {
     const { result } = renderHook(() =>
-      usePrinterConnection(ktvTenant, registerId)
+      usePrinterConnection(ktvTenant, registerId),
     );
     await waitFor(() => expect(result.current.isConnected).toBe(true));
 
@@ -621,7 +801,7 @@ describe("usePrinterConnection print sectors from the back office", () => {
         ...(sectors ? { sectors } : {}),
         lastVerifiedAt: "",
       },
-      true
+      true,
     );
 
   /** What the back office says about that printer: kitchen tickets only. */
@@ -654,10 +834,14 @@ describe("usePrinterConnection print sectors from the back office", () => {
 
     await act(async () => {
       await expect(result.current.printReceipt(paidBill)).rejects.toThrow(
-        /checkout printer/
+        /checkout printer/,
       );
       await expect(
-        result.current.printReceipt({ ...paidBill, title: "Finance copy", place: "FINANCE" })
+        result.current.printReceipt({
+          ...paidBill,
+          title: "Finance copy",
+          place: "FINANCE",
+        }),
       ).rejects.toThrow(/finance printer/);
     });
 
@@ -673,7 +857,7 @@ describe("usePrinterConnection print sectors from the back office", () => {
 
     await act(async () => {
       await expect(result.current.printReceipt(paidBill)).rejects.toThrow(
-        /checkout printer/
+        /checkout printer/,
       );
     });
 
@@ -713,7 +897,7 @@ describe("usePrinterConnection print areas", () => {
     id: string,
     displayName: string,
     host: string,
-    printsFor?: Array<"BAR" | "KTV" | "SPA">
+    printsFor?: Array<"BAR" | "KTV" | "SPA">,
   ) =>
     savePrinterBinding(
       tenantId,
@@ -729,12 +913,12 @@ describe("usePrinterConnection print areas", () => {
         ...(printsFor ? { printsFor } : {}),
         lastVerifiedAt: "",
       },
-      id === "printer-bar"
+      id === "printer-bar",
     );
 
   const printed = () =>
     mocks.printReceipt.mock.calls.map(
-      ([binding]) => (binding as { displayName: string }).displayName
+      ([binding]) => (binding as { displayName: string }).displayName,
     );
 
   it("prints a KTV guest slip on the KTV counter only", async () => {
@@ -793,5 +977,3 @@ describe("usePrinterConnection print areas", () => {
     expect(printed()).toEqual(["Counter"]);
   });
 });
-
-

@@ -23,6 +23,7 @@ import {
   SaleReceipt,
 } from "@/lib/printing/formatKdsTicket";
 import { applyKdsTicketModifiers } from "@/lib/printing/kdsTicketModifiers";
+import { withStationPrinters } from "@/lib/printing/stationPrinterBindings";
 import { hasNativePrinterBridge } from "@/lib/printing/webPrinterTransports";
 import {
   groupKitchenJobs,
@@ -427,6 +428,25 @@ export function usePrinterConnection(
     }
   }, [locationId]);
 
+  /** The back-office records of station printers this till has not saved. */
+  const stationPrinters = useCallback(
+    async (stations: StationRoute[], bindings: PrinterBinding[]): Promise<KitchenPrinter[]> => {
+      const bound = new Set(bindings.map((binding) => binding.backendPrinterId));
+      if (stations.every((station) => station.printerIds.every((id) => bound.has(id)))) return [];
+      try {
+        const result = await printerService.list({
+          page: 1,
+          limit: 100,
+          locationId: locationId || undefined,
+        });
+        return result.printers;
+      } catch {
+        return [];
+      }
+    },
+    [locationId, printerService]
+  );
+
   const printKitchen = useCallback(
     async (
       slip: KitchenSlip,
@@ -438,31 +458,33 @@ export function usePrinterConnection(
       // A caller with no station list (a room tablet's order) still has to reach
       // the station of each item's category, so the outlet's stations are read here.
       const routes = stations.length ? stations : await stationsFor();
+      const bindings = routes.length
+        ? withStationPrinters(
+            current.bindings,
+            await stationPrinters(routes, current.bindings),
+            routes
+          )
+        : current.bindings;
       const resolved = slip.template ? undefined : await templateFor("KDS");
       const template = slip.template || resolved?.settings;
       const paperWidth = slip.paperWidth || resolved?.paperWidth;
       const plan = groupKitchenJobs(
         slip.lines || [],
-        current.bindings,
+        bindings,
         current.defaultBinding,
         slip.stationId,
         routes,
         options
       );
       const lines = slip.lines || [];
-      // Station routing can leave every line unrouted (for example a category
-      // with no station, or a station whose printer is not bound on this
-      // device). Rather than silently printing nothing, fall back to the
-      // KDS/default printer so the kitchen ticket still reaches the paper.
-      //
-      // This fallback must NOT run when the caller requires strict station
-      // routing (`requireStationRouting`). Otherwise a category that is not
-      // assigned to the matching station would be sprayed onto the default KDS
-      // printer (for example "only salad" routed to the drink-station printer
-      // would still receive every other category). In strict mode the plan is
-      // returned untouched so the caller can surface the unrouted lines.
+      // Without stations the ticket goes to the till's own KDS printer: a
+      // one-printer venue prints everything there. With stations set up, an item
+      // whose station printer is not saved on this till must NOT fall back to it -
+      // that printed a waiter tablet's rice and beer at every counter. The plan
+      // comes back unrouted so the caller can say which station is missing.
       let jobs: PrinterJob[] = plan.jobs;
-      if (!options.requireStationRouting && !jobs.length && lines.length) {
+      const stationRouting = options.requireStationRouting || routes.length > 0;
+      if (!stationRouting && !jobs.length && lines.length) {
         const kds = await bindingsWithSectors();
         const localTargets = resolveBindingsForPlace(
           kds.bindings,
@@ -497,7 +519,7 @@ export function usePrinterConnection(
       }
       return plan;
     },
-    [backendTargets, bindingsWithSectors, currentBindings, registerId, stationsFor, templateFor, tenantId]
+    [backendTargets, bindingsWithSectors, currentBindings, registerId, stationPrinters, stationsFor, templateFor, tenantId]
   );
 
   const printReceipt = useCallback(
