@@ -1,5 +1,7 @@
 export type PrinterTransport = "NETWORK" | "USB" | "BLUETOOTH";
 export type PrinterSector = "KDS" | "CHECKOUT" | "FINANCE";
+/** The area of the venue a printer prints for; none means every area. */
+export type PrinterArea = "BAR" | "KTV" | "SPA";
 
 export interface PrinterBinding {
   id: string;
@@ -10,6 +12,7 @@ export interface PrinterBinding {
   host?: string;
   port?: number;
   sectors?: PrinterSector[];
+  printsFor?: PrinterArea[];
   categoryIds?: string[];
   lastVerifiedAt: string;
   lastError?: string | null;
@@ -265,21 +268,63 @@ const uniquePhysicalPrinters = (bindings: PrinterBinding[]): PrinterBinding[] =>
 };
 
 /**
- * Printers a receipt/kitchen job should go to for one section.
+ * A guest slip and the office copy belong to an area of the venue; a kitchen
+ * ticket does not. A KDS printer takes the tickets of the stations it serves,
+ * whatever areas it prints slips for, so areas never narrow kitchen routing.
+ */
+export function takesArea(place: PrinterSector): boolean {
+  return place === "CHECKOUT" || place === "FINANCE";
+}
+
+/**
+ * Printers a receipt/kitchen job should go to for one section of one area.
  *
- * An exact sector match always wins. When nothing is bound to that section we
- * fall back to the default printer, then to the only printer on this register.
- * Without this a single-printer venue (very common on Android tablets) fails
- * with "No checkout printer is connected" even though a printer is configured.
+ * A printer's own print sectors are the last word on what it prints: a KDS
+ * printer must never take the guest's bill. The areas it prints for come next, and
+ * only for the slips that have an area: a KTV guest slip belongs on the KTV
+ * printers, not on the bar counter's, even though both are checkout printers of
+ * the same outlet. Kitchen tickets ignore areas entirely.
+ *
+ * A printer set up for the area beats one that names no area at all, the same way
+ * a printer that names its sections beats the register's catch-all: a bar counter
+ * that was never given its places used to take the KTV's slip as well, and the
+ * guest's bill came out twice, on two counters. A printer that names no areas is
+ * still the printer of every area when the outlet has no printer for that area.
+ * The two rules stack in that order: naming the section comes first — so a
+ * catch-all printer never takes the counter's slip — and the area decides within
+ * the printers that name it.
  */
 export function resolveBindingsForPlace(
   bindings: PrinterBinding[],
   defaultBinding: PrinterBinding | null,
-  place: PrinterSector
+  place: PrinterSector,
+  area?: PrinterArea
 ): PrinterBinding[] {
+  const wanted = takesArea(place) ? area : undefined;
+  const declaresArea = (binding: PrinterBinding): boolean =>
+    Boolean(binding.printsFor?.length);
+  const servesArea = (binding: PrinterBinding): boolean =>
+    !wanted || !declaresArea(binding) || Boolean(binding.printsFor?.includes(wanted));
+  /** The printers set up for this area, or every candidate when none is. */
+  const preferringArea = (candidates: PrinterBinding[]): PrinterBinding[] => {
+    if (!wanted) return candidates;
+    const declared = candidates.filter(declaresArea);
+    return declared.length ? declared : candidates;
+  };
+
   const bySector = bindingsForSector(bindings, place);
+  const serving = preferringArea(bySector.filter(servesArea));
+  if (serving.length) return uniquePhysicalPrinters(serving);
+  // This section has printers, but none of them serves the area: a slip on one
+  // of them is better than no slip at all.
   if (bySector.length) return uniquePhysicalPrinters(bySector);
-  if (defaultBinding) return [defaultBinding];
-  const uniqueBindings = uniquePhysicalPrinters(bindings);
-  return uniqueBindings.length === 1 ? uniqueBindings : [];
+
+  const catchAll = bindings.filter((binding) => !binding.sectors?.length);
+  const catching = catchAll.filter(servesArea);
+  const pool = preferringArea(catching.length ? catching : catchAll);
+  if (!pool.length) return [];
+  const preferred = pool.filter(
+    (binding) => binding.id === defaultBinding?.id
+  );
+  return uniquePhysicalPrinters(preferred.length ? preferred : pool);
 }

@@ -203,16 +203,23 @@ describe("OrderPanel", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it.each([
-    [true, false, "11.00"],
-    [true, true, "10.00"],
-    [false, false, "10.00"],
-    [false, true, "9.00"],
-  ])("displays row amounts for includeTax=%s inclusive=%s", (includeTax, taxInclusive, expected) => {
-    render(<OrderPanel {...defaultProps} includeTax={includeTax}
-      selectedOrderLines={[new SalesOrderLine({ ...line, taxAmount: "1.0000", taxInclusive })]} />);
-    expect(row()).toHaveTextContent(expected);
-  });
+  // A row shows the item's own price: tax is a bill-level row in the breakdown,
+  // so it is neither added to nor taken out of one line's amount.
+  it.each([true, false])(
+    "shows the item price without its tax when taxInclusive=%s",
+    (taxInclusive) => {
+      render(
+        <OrderPanel {...defaultProps}
+          selectedOrderLines={[new SalesOrderLine({ ...line, taxAmount: "1.0000", taxInclusive })]} />
+      );
+      const group = row();
+      // The unit price is 10.00; 11.00 would mean tax was added to the row and
+      // 9.00 that it was taken out of it.
+      expect(group).toHaveTextContent("10.00");
+      expect(group).not.toHaveTextContent("11.00");
+      expect(group).not.toHaveTextContent("9.00");
+    }
+  );
 
   it("uses bill-priced lines for display without changing action payloads", () => {
     const onRemoveLine = vi.fn();

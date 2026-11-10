@@ -18,6 +18,8 @@ const mocks = vi.hoisted(() => ({
   listTemplates: vi.fn(),
   getSalesOrderLines: vi.fn(),
   company: vi.fn(),
+  listPrinters: vi.fn(),
+  listStations: vi.fn(),
 }));
 
 vi.mock("@/core/infrastructure/printing/getPrinterClient", () => ({
@@ -45,6 +47,12 @@ vi.mock("@/core/infrastructure/di/container", () => ({
           resolve: mocks.resolveTemplate,
           company: mocks.company,
         };
+      }
+      if (key === "kitchenPrinterService") {
+        return { list: mocks.listPrinters };
+      }
+      if (key === "kdsStationService") {
+        return { list: mocks.listStations };
       }
       return {
         list: vi.fn().mockResolvedValue({ printers: [] }),
@@ -78,6 +86,10 @@ beforeEach(() => {
   mocks.company.mockResolvedValue({ name: "" });
   mocks.listTemplates.mockReset();
   mocks.listTemplates.mockResolvedValue({ templates: [] });
+  mocks.listPrinters.mockReset();
+  mocks.listPrinters.mockResolvedValue({ printers: [] });
+  mocks.listStations.mockReset();
+  mocks.listStations.mockResolvedValue({ stations: [] });
 });
 
 describe("usePrinterConnection print templates", () => {
@@ -274,6 +286,80 @@ describe("usePrinterConnection station routing", () => {
     });
 
     expect(mocks.printKitchen).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("usePrinterConnection station routing", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    mocks.printKitchen.mockReset();
+    mocks.printKitchen.mockResolvedValue(undefined);
+  });
+
+  /** A KDS printer bound on this till, as Settings saves one. */
+  const bind = (id: string, backendPrinterId: string, host: string) =>
+    savePrinterBinding(
+      tenantId,
+      registerId,
+      {
+        id,
+        backendPrinterId,
+        transport: "NETWORK",
+        displayName: id,
+        host,
+        port: 9100,
+        sectors: ["KDS"],
+        lastVerifiedAt: "",
+      },
+      false
+    );
+
+  it("reads the outlet's stations for a caller that has none to hand", async () => {
+    // A room tablet's order arrives with no station list: the hook reads the
+    // outlet's stations so each item still reaches the station of its category.
+    bind("Chinese KDS", "printer-chinese", "10.4.0.1");
+    bind("Beverage KDS", "printer-drinks", "10.4.0.2");
+    mocks.listStations.mockResolvedValue({
+      stations: [
+        {
+          id: "st-chinese",
+          name: "Chinese KDS",
+          printerIds: ["printer-chinese"],
+          routingRules: { categoryIds: ["cat-chinese"] },
+        },
+        {
+          id: "st-drinks",
+          name: "Beverage KDS",
+          printerIds: ["printer-drinks"],
+          routingRules: { categoryIds: ["cat-drinks"] },
+        },
+      ],
+    });
+
+    const { result } = renderHook(() =>
+      usePrinterConnection(tenantId, registerId, "location-1")
+    );
+    await waitFor(() => expect(result.current.isConnected).toBe(true));
+
+    await act(async () => {
+      await result.current.printKitchen({
+        title: "Room order 4",
+        place: "Room S2",
+        lines: [
+          { name: "Chinese fried noodle", quantity: "1", categoryId: "cat-chinese" },
+          { name: "Beer", quantity: "2", categoryId: "cat-drinks" },
+        ],
+      });
+    });
+
+    const printed = mocks.printKitchen.mock.calls.map(([binding, slip]) => [
+      binding.displayName,
+      slip.lines.map((line: { name: string }) => line.name),
+    ]);
+    expect(printed).toEqual([
+      ["Chinese KDS", ["Chinese fried noodle"]],
+      ["Beverage KDS", ["Beer"]],
+    ]);
   });
 });
 
@@ -507,3 +593,205 @@ describe("usePrinterConnection KTV slips", () => {
     expect(slip.place).toBe("Golden Club 101");
   });
 });
+
+describe("usePrinterConnection print sectors from the back office", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    mocks.connect.mockReset();
+    mocks.connect.mockResolvedValue(undefined);
+    mocks.resolveTemplate.mockResolvedValue({ settings: undefined });
+    mocks.printReceipt.mockReset();
+    mocks.printReceipt.mockResolvedValue(undefined);
+    mocks.printKitchen.mockReset();
+    mocks.printKitchen.mockResolvedValue(undefined);
+  });
+
+  /** The bar printer bound on this till, and ticked as its default. */
+  const bindBar = (sectors?: Array<"KDS" | "CHECKOUT" | "FINANCE">) =>
+    savePrinterBinding(
+      tenantId,
+      registerId,
+      {
+        id: "printer-bar",
+        backendPrinterId: "printer-bar",
+        transport: "NETWORK",
+        displayName: "Bar",
+        host: "192.168.201.92",
+        port: 9100,
+        ...(sectors ? { sectors } : {}),
+        lastVerifiedAt: "",
+      },
+      true
+    );
+
+  /** What the back office says about that printer: kitchen tickets only. */
+  const backendSaysKds = () =>
+    mocks.listPrinters.mockResolvedValue({
+      printers: [
+        {
+          id: "printer-bar",
+          name: "Bar",
+          port: 9100,
+          ipAddress: "192.168.201.92",
+          sectors: ["KDS"],
+          isActive: true,
+        },
+      ],
+      total: 1,
+      page: 1,
+      limit: 100,
+      totalPages: 1,
+    });
+
+  const paidBill = { title: "RECEIPT", sale: true, lines: [], total: "1000" };
+
+  it("keeps a KDS printer to kitchen tickets when its binding names no sectors", async () => {
+    // A binding saved before print sectors existed carries none of its own.
+    bindBar();
+    backendSaysKds();
+    const { result } = renderConnection();
+    await waitFor(() => expect(result.current.isConnected).toBe(true));
+
+    await act(async () => {
+      await expect(result.current.printReceipt(paidBill)).rejects.toThrow(
+        /checkout printer/
+      );
+      await expect(
+        result.current.printReceipt({ ...paidBill, title: "Finance copy", place: "FINANCE" })
+      ).rejects.toThrow(/finance printer/);
+    });
+
+    expect(mocks.printReceipt).not.toHaveBeenCalled();
+  });
+
+  it("keeps a KDS printer to kitchen tickets when its binding still names the till's sections", async () => {
+    // A binding written when this printer was the till's counter printer.
+    bindBar(["CHECKOUT", "FINANCE"]);
+    backendSaysKds();
+    const { result } = renderConnection();
+    await waitFor(() => expect(result.current.isConnected).toBe(true));
+
+    await act(async () => {
+      await expect(result.current.printReceipt(paidBill)).rejects.toThrow(
+        /checkout printer/
+      );
+    });
+
+    expect(mocks.printReceipt).not.toHaveBeenCalled();
+  });
+
+  it("still prints kitchen tickets on that printer", async () => {
+    bindBar();
+    backendSaysKds();
+    const { result } = renderConnection();
+    await waitFor(() => expect(result.current.isConnected).toBe(true));
+
+    await act(async () => {
+      await result.current.printKitchen({
+        title: "KITCHEN",
+        lines: [{ name: "Beer", quantity: "1" }],
+      });
+    });
+
+    expect(mocks.printKitchen).toHaveBeenCalledTimes(1);
+    const [binding] = mocks.printKitchen.mock.calls[0];
+    expect(binding.displayName).toBe("Bar");
+  });
+});
+
+describe("usePrinterConnection print areas", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    mocks.connect.mockReset();
+    mocks.connect.mockResolvedValue(undefined);
+    mocks.resolveTemplate.mockResolvedValue({ settings: undefined });
+    mocks.printReceipt.mockReset();
+    mocks.printReceipt.mockResolvedValue(undefined);
+  });
+
+  const bind = (
+    id: string,
+    displayName: string,
+    host: string,
+    printsFor?: Array<"BAR" | "KTV" | "SPA">
+  ) =>
+    savePrinterBinding(
+      tenantId,
+      registerId,
+      {
+        id,
+        backendPrinterId: id,
+        transport: "NETWORK",
+        displayName,
+        host,
+        port: 9100,
+        sectors: ["CHECKOUT"],
+        ...(printsFor ? { printsFor } : {}),
+        lastVerifiedAt: "",
+      },
+      id === "printer-bar"
+    );
+
+  const printed = () =>
+    mocks.printReceipt.mock.calls.map(
+      ([binding]) => (binding as { displayName: string }).displayName
+    );
+
+  it("prints a KTV guest slip on the KTV counter only", async () => {
+    bind("printer-bar", "Cashier", "192.168.1.51", ["BAR"]);
+    bind("printer-ktv", "KTV counter", "192.168.1.50", ["KTV"]);
+    const { result } = renderConnection();
+    await waitFor(() => expect(result.current.isConnected).toBe(true));
+
+    await act(async () => {
+      await result.current.printReceipt({
+        title: "RECEIPT",
+        sale: true,
+        area: "KTV",
+        lines: [],
+        total: "1000",
+      });
+    });
+
+    expect(printed()).toEqual(["KTV counter"]);
+  });
+
+  it("prints a bar guest slip on the bar counter only", async () => {
+    bind("printer-bar", "Cashier", "192.168.1.51", ["BAR"]);
+    bind("printer-ktv", "KTV counter", "192.168.1.50", ["KTV"]);
+    const { result } = renderConnection();
+    await waitFor(() => expect(result.current.isConnected).toBe(true));
+
+    await act(async () => {
+      await result.current.printReceipt({
+        title: "RECEIPT",
+        sale: true,
+        area: "BAR",
+        lines: [],
+        total: "1000",
+      });
+    });
+
+    expect(printed()).toEqual(["Cashier"]);
+  });
+
+  it("prints on a printer that lists no area when the area's own is not set up", async () => {
+    bind("printer-plain", "Counter", "192.168.1.52");
+    const { result } = renderConnection();
+    await waitFor(() => expect(result.current.isConnected).toBe(true));
+
+    await act(async () => {
+      await result.current.printReceipt({
+        title: "RECEIPT",
+        sale: true,
+        area: "SPA",
+        lines: [],
+        total: "1000",
+      });
+    });
+
+    expect(printed()).toEqual(["Counter"]);
+  });
+});
+
+

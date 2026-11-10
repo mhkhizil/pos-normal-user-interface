@@ -121,6 +121,8 @@ export interface SaleReceipt extends PrintParty {
   startTimeLabel?: string;
   endTimeLabel?: string;
   place?: PrintPlace;
+  /** The area of the venue this slip belongs to, so it prints on that area's printer. */
+  area?: "BAR" | "KTV" | "SPA";
   /** A paid bill: prints every copy its template asks for at checkout. */
   sale?: boolean;
   /** Which copy of a paid bill this is. */
@@ -534,7 +536,7 @@ const kitchenPlace = (slip: KitchenSlip) =>
       : undefined);
 
 const kitchenItemSize = (fontSize?: string): Size =>
-  fontSize === "LARGE" ? "huge" : fontSize === "SMALL" ? "normal" : "tall";
+  fontSize === "LARGE" ? "tall" : "normal";
 
 /** ESC/POS magnification, height then width: 2H1W is tall, 1H2W wide, 2H2W both. */
 const SCALE_SIZE: Record<string, Size> = {
@@ -543,9 +545,6 @@ const SCALE_SIZE: Record<string, Size> = {
   "1H2W": "wide",
   "2H2W": "huge",
 };
-
-/** The scale a kitchen template starts at; a bill's starts at normal. */
-const KITCHEN_START = "2H2W";
 
 /** The size the text-size switch names, once it is off the value its type started with. */
 const chosenItemSize = (
@@ -558,27 +557,38 @@ const chosenItemSize = (
 };
 
 /**
+ * How big a kitchen ticket's items print.
+ *
+ * The ticket reads the Item text size switch the way the bill does - "Normal" is
+ * normal, "Big" really is big - so a shop that sets Normal gets a normal ticket.
+ * A template that never set the switch keeps the kitchen's double height, and no
+ * template at all prints like the bill: the built-in ticket used to come out at
+ * double height whatever the Print Template screen said.
+ */
+const kitchenItemSizeFor = (settings?: PrintTemplateSettings): Size => {
+  const scale = settings?.item.itemTextScale;
+  const chosen = scale ? SCALE_SIZE[scale] : undefined;
+  return chosen || kitchenItemSize(settings?.item.fontSize);
+};
+
+/**
  * How big items print. The text-size switch wins once it is moved off the
  * type's starting value; until then the older font-size switch decides, so a
  * template saved before keeps printing as it did.
  */
 const itemSizeFor = (settings: PrintTemplateSettings | undefined, kitchen: boolean): Size => {
-  const chosen = chosenItemSize(settings, kitchen ? KITCHEN_START : "1H1W");
+  if (kitchen) return kitchenItemSizeFor(settings);
+  const chosen = chosenItemSize(settings, "1H1W");
   if (chosen) return chosen;
-  if (kitchen) return kitchenItemSize(settings?.item.fontSize);
   return settings?.item.fontSize === "LARGE" ? "tall" : "normal";
 };
 
 /**
- * A room's ticket (KTV or SPA) carries the kitchen template, so its switch is
- * read the way the kitchen reads it: "Normal" there is a real choice, not the
- * value the switch started at. A template that never moved the switch keeps
- * printing the height it always gave, and a slip with no template reads like
- * the room's bill at the bill's single line height.
+ * A room's ticket (KTV or SPA) carries the kitchen template, so it reads the same
+ * switch, and a slip with no template reads like the room's bill.
  */
 const roomItemSizeFor = (settings?: PrintTemplateSettings): Size =>
-  chosenItemSize(settings, KITCHEN_START) ||
-  (settings ? kitchenItemSize(settings.item.fontSize) : "normal");
+  settings ? kitchenItemSizeFor(settings) : "normal";
 
 /** The text-size switch's value that prints items the size they print now. */
 export function itemTextScaleOf(settings: PrintTemplateSettings, kitchen: boolean): string {
@@ -595,6 +605,11 @@ function kitchenLayout(slip: KitchenSlip): Layout {
   const showPrices = settings ? settings.item.price : false;
   const showModifiers = settings ? settings.item.modifiers : true;
   const showOrderNumber = !settings || settings.other.orderNumber;
+  // The switches the Print Template screen offers for a kitchen ticket, read the
+  // same way the bill reads its own: what the shop turned off stays off the paper.
+  const qtyFirst = settings ? settings.item.qtyFirst : true;
+  const showRemarks = settings ? settings.item.productRemarks : true;
+  const showSender = settings ? settings.other.cashier : true;
   const layout = new Layout(columnsFor(slip.paperWidth));
 
   layout.line((slip.stationName || "Kitchen").toUpperCase(), { bold: true, invert: true });
@@ -606,9 +621,9 @@ function kitchenLayout(slip: KitchenSlip): Layout {
   if (place) {
     layout.gap();
     // Where the food goes keeps its bold, centred line; the template's Other
-    // text size decides how big it prints, and a slip with no template keeps
-    // the built-in huge line.
-    layout.line(place, { align: "center", size: settings ? other : "huge", bold: true });
+    // text size decides how big it prints, and a slip with no template prints it
+    // like the rest of the ticket.
+    layout.line(place, { align: "center", size: other, bold: true });
   }
   layout.line(slip.placeDetail || slip.serviceType, { align: "center", size: other });
   layout.gap();
@@ -625,13 +640,29 @@ function kitchenLayout(slip: KitchenSlip): Layout {
   const size = slip.room ? roomItemSizeFor(settings) : itemSizeFor(settings, true);
   lines.forEach((item, index) => {
     if (index) layout.gap();
-    // The quantity leads the name with an "x" after it, as the receipt prints it.
-    const lead = `${quantityText(item.quantity)} x `;
-    const columns = layout.columns(size) - lead.length;
-    const [first, ...rest] = wrapText(item.name.toUpperCase(), columns);
-    layout.rows.push({ kind: "text", text: `${lead}${first}`, size, bold: true });
-    for (const part of rest) {
-      layout.rows.push({ kind: "text", text: `${" ".repeat(lead.length)}${part}`, size, bold: true });
+    const quantity = quantityText(item.quantity);
+    const name = item.name.toUpperCase();
+    const columns = layout.columns(size);
+    if (qtyFirst) {
+      // The quantity leads the name with an "x" after it, as the receipt prints it.
+      const lead = `${quantity} x `;
+      const [first, ...rest] = wrapText(name, columns - lead.length);
+      layout.rows.push({ kind: "text", text: `${lead}${first}`, size, bold: true });
+      for (const part of rest) {
+        layout.rows.push({ kind: "text", text: `${" ".repeat(lead.length)}${part}`, size, bold: true });
+      }
+    } else {
+      // The switch the other way round: the name first, its quantity after it.
+      const trail = ` x${quantity}`;
+      const parts = wrapText(name, columns - trail.length);
+      parts.forEach((part, partIndex) => {
+        layout.rows.push({
+          kind: "text",
+          text: partIndex === parts.length - 1 ? `${part}${trail}` : part,
+          size,
+          bold: true,
+        });
+      });
     }
     if (settings?.item.bilingual) layout.indented(3, item.altName);
     if (showPrices && item.unitPrice) layout.indented(3, `@ ${printMoney(item.unitPrice)}`);
@@ -639,17 +670,19 @@ function kitchenLayout(slip: KitchenSlip): Layout {
       for (const modifier of modifierRows(item, showPrices)) layout.indented(3, modifier);
     }
     if (item.seat) layout.indented(3, `Seat ${item.seat}`);
-    if (item.remarks?.trim()) layout.indented(3, `** ${item.remarks.trim()} **`, { bold: true });
+    if (showRemarks && item.remarks?.trim()) {
+      layout.indented(3, `** ${item.remarks.trim()} **`, { bold: true });
+    }
   });
   if (lines.length) layout.rule("=");
 
   const count = lines.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
   if (count) layout.line(`${count} ${count === 1 ? "item" : "items"}`, { bold: true, size: other });
   const sender = slip.sentBy || slip.cashier;
-  if (sender) layout.line(`Sent by ${sender}`, { size: other });
+  if (sender && showSender) layout.line(`Sent by ${sender}`, { size: other });
   if (settings?.other.footerText) {
     layout.gap();
-    layout.line(settings.other.footerText, { align: "center" });
+    layout.line(settings.other.footerText, { align: "center", size: other });
   }
   return layout;
 }
@@ -686,7 +719,9 @@ function receiptLayout(receipt: SaleReceipt): Layout {
     layout.image(receipt.logo);
     if (receipt.logo) layout.gap();
   }
-  if (company?.name) {
+  // The header's outlet name switch owns the name at the top: a bill with it off
+  // prints no business name at all, not just the outlet line under the company's.
+  if (company?.name && headed(settings?.header.outletName)) {
     layout.line(company.name.toUpperCase(), { align: "center", size: "wide", bold: true });
     if (company.legalName && company.legalName !== company.name) {
       layout.line(company.legalName, { align: "center" });

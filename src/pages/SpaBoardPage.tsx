@@ -1702,6 +1702,7 @@ export function SpaBoardPage({ kind = "spa" }: { kind?: RoomKind }) {
           title: "RECEIPT",
           sale: true,
           place: "CHECKOUT",
+          area: kind === "ktv" ? "KTV" : "SPA",
           showLogo: true,
           showPrices: true,
           receiptId: final.orderNumber || quote?.orderNumber || undefined,
@@ -2030,6 +2031,7 @@ export function SpaBoardPage({ kind = "spa" }: { kind?: RoomKind }) {
       await printer.printReceipt({
         title: tr("checkBill"),
         place: "CHECKOUT",
+        area: kind === "ktv" ? "KTV" : "SPA",
         showLogo: true,
         showPrices: true,
         receiptId: quote?.orderNumber || undefined,
@@ -2074,6 +2076,7 @@ export function SpaBoardPage({ kind = "spa" }: { kind?: RoomKind }) {
         title: "RECEIPT",
         sale: true,
         place: "CHECKOUT",
+        area: kind === "ktv" ? "KTV" : "SPA",
         showLogo: true,
         showPrices: true,
         receiptId: result.orderNumber || quote?.orderNumber || undefined,

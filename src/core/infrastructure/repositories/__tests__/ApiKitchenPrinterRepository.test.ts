@@ -12,6 +12,7 @@ describe("ApiKitchenPrinterRepository", () => {
       ipAddress: "192.168.1.50",
       port: 9100,
       sectors: ["KDS", "CHECKOUT"],
+      printsFor: ["KTV"],
       isActive: true,
     };
     const get = vi.fn().mockResolvedValue({
@@ -33,6 +34,7 @@ describe("ApiKitchenPrinterRepository", () => {
       limit: 10,
       locationId: "location-1",
       sector: "KDS",
+      area: "KTV",
     });
     await repository.create({
       tenantId: "tenant-1",
@@ -53,6 +55,7 @@ describe("ApiKitchenPrinterRepository", () => {
         limit: 10,
         locationId: "location-1",
         sector: "KDS",
+        area: "KTV",
       },
     });
     expect(post).toHaveBeenCalledWith("/api/v1/printers", {

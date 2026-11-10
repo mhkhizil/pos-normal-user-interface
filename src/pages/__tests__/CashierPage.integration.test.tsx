@@ -57,6 +57,7 @@ const mocks = vi.hoisted(() => ({
   loadHostesses: vi.fn(),
   settleOrder: vi.fn(),
   processCheckout: vi.fn(),
+  getLatestSessionByTableId: vi.fn(),
 }));
 
 const product = {
@@ -142,6 +143,7 @@ let selectedOrderLinesState: Array<
 > = [orderLine];
 let selectedOrderState: typeof order | null = order;
 let activeServiceTypeState = "TABLE";
+let salesOrdersState: Array<typeof order> = [order];
 let productState = product;
 let venueSettingsState = {
   defaultTaxRate: null,
@@ -268,7 +270,7 @@ vi.mock("@/core/presentation/hooks/useCashier", () => ({
       { ...product, id: "product-hostess", name: "Hostess hour", askWhoServed: true },
     ],
     variantsByProductId: { "product-1": [variant] },
-    salesOrders: [order],
+    salesOrders: salesOrdersState,
     selectedOrder: selectedOrderState,
     selectedOrderLines: selectedOrderLinesState,
     paymentMethods: [
@@ -305,7 +307,7 @@ vi.mock("@/core/presentation/hooks/useCashier", () => ({
     checkoutTableSession: mocks.checkoutTableSession,
     updateTableSessionState: mocks.updateTableSessionState,
     fireToKds: mocks.fireToKds,
-    getLatestSessionByTableId: vi.fn().mockReturnValue(session),
+    getLatestSessionByTableId: mocks.getLatestSessionByTableId,
     selectOrder: vi.fn(),
     selectOrderById: mocks.selectOrderById,
     createOrder: vi.fn(),
@@ -353,6 +355,8 @@ describe("CashierPage integration", () => {
     selectedOrderLinesState = [orderLine];
     selectedOrderState = order;
     activeServiceTypeState = "TABLE";
+    salesOrdersState = [order];
+    mocks.getLatestSessionByTableId.mockReturnValue(session);
     productState = product;
     venueSettingsState = {
       defaultTaxRate: null,
@@ -459,6 +463,50 @@ describe("CashierPage integration", () => {
     mocks.openTableSession.mockResolvedValue(session);
   });
 
+  describe("board service tab counts", () => {
+    /** The Dine In service tab, whose badge sits beside its label. */
+    const dineInTab = () =>
+      screen.getByRole("button", { name: /cashier\.serviceTypes\.dineIn/ });
+
+    const dineInDraft = (id: string, orderNumber: string) => ({
+      ...order,
+      id,
+      orderNumber,
+      serviceType: "DINE_IN",
+      status: "DRAFT",
+    });
+
+    it("keeps a dine-in draft no table session owns out of the badge", async () => {
+      activeServiceTypeState = "DINE_IN";
+      salesOrdersState = [dineInDraft("order-orphan", "POS-ORPHAN")];
+      mocks.getLatestSessionByTableId.mockReturnValue(undefined);
+
+      render(<MemoryRouter initialEntries={["/cashier"]}><CashierPage /></MemoryRouter>);
+
+      await waitFor(() =>
+        expect(dineInTab().textContent).toBe("cashier.serviceTypes.dineIn0")
+      );
+      // The draft has no tile on the table board, so it is not on screen either.
+      expect(screen.queryByText("POS-ORPHAN")).not.toBeInTheDocument();
+      expect(screen.getByText("T1")).toBeInTheDocument();
+    });
+
+    it("counts the dine-in order of a table that is still open", async () => {
+      activeServiceTypeState = "DINE_IN";
+      salesOrdersState = [dineInDraft("order-seated", "POS-SEATED")];
+      mocks.getLatestSessionByTableId.mockReturnValue({
+        ...session,
+        salesOrderId: "order-seated",
+      });
+
+      render(<MemoryRouter initialEntries={["/cashier"]}><CashierPage /></MemoryRouter>);
+
+      await waitFor(() =>
+        expect(dineInTab().textContent).toBe("cashier.serviceTypes.dineIn1")
+      );
+    });
+  });
+
   describe("direct checkout bill options", () => {
     const startDirectBill = async () => {
       render(<MemoryRouter initialEntries={["/cashier?view=menu"]}><CashierPage /></MemoryRouter>);
@@ -531,6 +579,27 @@ describe("CashierPage integration", () => {
       expect(mocks.fetchOrderBill).not.toHaveBeenCalled();
       expect(mocks.checkoutTableSession).not.toHaveBeenCalled();
       expect(mocks.settleOrder).not.toHaveBeenCalled();
+    });
+
+    // The slip prints Tax and Service charge as rows of their own under the
+    // items, so its Subtotal is the items' money and the rows add up to TOTAL.
+    it("prints the items alone as the subtotal when no bill option was changed", async () => {
+      productState = { ...product, basePrice: "100.0000", taxRate: 10 };
+      await startDirectBill();
+      fireEvent.click(screen.getByRole("checkbox", { name: "cashier.payment.printBillOnConfirm" }));
+      fireEvent.click(screen.getByRole("button", { name: "cashier.confirmPay" }));
+
+      await waitFor(() => expect(mocks.printReceipt).toHaveBeenCalled());
+      const slip = mocks.printReceipt.mock.calls[0][0];
+      // The item at 100, then the tax (with the tax on the service charge) and
+      // the service charge on their own rows.
+      expect(slip.subtotal).toBe("100.0000");
+      expect(slip.tax).toBe("11.0000");
+      expect(slip.serviceCharge).toBe("10.0000");
+      expect(slip.total).toBe("121.0000");
+      expect(
+        Number(slip.subtotal) + Number(slip.tax) + Number(slip.serviceCharge)
+      ).toBeCloseTo(Number(slip.total), 2);
     });
 
     it("asks whose account a credit payment goes on and sends that customer", async () => {

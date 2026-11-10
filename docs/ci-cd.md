@@ -1,5 +1,22 @@
 # PrivateVIP CI/CD
 
+## Active dual-site deployment
+
+PrivateVIP (`privatevip.mmlnkits.com`) and App (`app.mmlnkits.com`) deploy
+the same triggering source SHA. App retains `https://api1.mmlnkits.com` as
+its backend; PrivateVIP retains `https://apivision.winterarc.asia`.
+The retired `yankinfoodhouse.mmlnkits.com` domain must never be probed.
+
+`scripts/deploy-both-production.sh` is the reviewed copy of the actual installed
+`/usr/local/sbin/privatevip-deploy` command. It builds both images before rollout,
+checks both sites, checks both running image revision labels against the requested
+SHA, and rolls both containers back on activation/probe/revision failure.
+Legacy App container/image/config names still contain `yankinfoodhouse`; do not
+rename them or replace the site's backend during a frontend deployment.
+The older `scripts/deploy-production.sh` is a PrivateVIP-only reference, not the
+installed dual-site command. Repository edits do not automatically install either
+script on the server.
+
 The workflow in `.github/workflows/deploy.yml` runs CI for pull requests to
 `main`, and CI plus deployment for pushes to `main`. It can also be started
 manually from the GitHub Actions tab (select `main`). Other branches never deploy.
@@ -19,7 +36,7 @@ review changes to `main`, especially the Dockerfile and workflow.
 1. Validate Compose and Bash syntax and run the required sandboxed deployment
    tests. Compile with the Dockerfile's Node 24 build stage using SHA-pinned Docker
    Buildx actions and persistent GitHub Actions layer caches. Build-stage,
-   PrivateVIP runtime, and Yankin runtime caches have separate scopes.
+   PrivateVIP runtime and App runtime caches have separate scopes.
 2. Run the repository test suite. **Tests are currently advisory** because the
    baseline has a cashier table-state failure and two Burmese locale failures.
    Failures produce a workflow warning and summary. Remove `continue-on-error`
@@ -82,11 +99,13 @@ or the server-owned Compose file. Reinstall explicitly after reviewing changes.
 Nginx, Certbot, and their certificates are not changed during application deploys.
 
 **Rollout requirement:** these repository edits do not change a running VPS.
-Review and reinstall the trusted deployment command (preserving any server-only
-dual-site logic) before expecting image reuse/retention changes. The checked-in
-script handles PrivateVIP; the workflow also verifies Yankin, whose installed
-server-side orchestration is not present in this checkout. Apply equivalent
-changes there after inspecting its actual configuration. Merge the runtime limits
+Review and reinstall the trusted deployment command before expecting
+image reuse/retention changes. The checked-in script and workflow target only
+PrivateVIP and App using the dual-site command described above. Yankin's old
+domain is retired: do not probe it in this pipeline.
+Inspect the installed forced SSH command for legacy dual-site logic before
+replacing it; its actual configuration is not present in this checkout.
+Merge the runtime limits
 and Nginx tuning into the relevant server-owned configuration as appropriate.
 Do not replace `/etc/privatevip/compose.yml` blindly: retain its site-specific
 ports/environment, `${APP_IMAGE}` selection, and any additional frontend services.

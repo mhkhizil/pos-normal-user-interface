@@ -31,6 +31,148 @@ const escapeHtml = (value: string) =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 
+/** The white border the browser document leaves on each side of the paper. */
+const DOC_PADDING_MM = 4;
+/** A monospace glyph is about 0.6 em wide; one em is the font size. */
+const GLYPH_EM_RATIO = 0.6;
+const MIN_FONT_MM = 1.8;
+const MAX_FONT_MM = 3.4;
+
+/**
+ * The font size that fits `columns` characters across the paper.
+ *
+ * The browser document used to print every slip at a fixed 12px, so a KDS ticket
+ * came out big and bold however the Print Template sizes were set. The size now
+ * follows the columns the slip was wrapped to, which is the same measure the
+ * printer itself works in.
+ */
+export const printFontSizeMm = (paperWidthMm: number, columns: number) => {
+  const usableMm = Math.max(1, paperWidthMm - DOC_PADDING_MM * 2);
+  const cellMm = usableMm / Math.max(1, columns);
+  return Math.min(MAX_FONT_MM, Math.max(MIN_FONT_MM, cellMm / GLYPH_EM_RATIO));
+};
+
+const contactLabel = (icon: "phone" | "email" | string) =>
+  icon === "phone" ? "Tel" : "Email";
+
+/** One styled row of the print document, drawn as the printer would print it. */
+const printDocumentRow = (row: SlipPreviewRow): string => {
+  if (row.kind === "gap") return '<div class="gap"></div>';
+  // The browser dialog has no logo: the printer's own raster image cannot follow it here.
+  if (row.kind === "image") return "";
+  if (row.kind === "rule") return `<div class="line">${escapeHtml(row.text)}</div>`;
+  if (row.kind === "contact") {
+    return `<div class="line center">${escapeHtml(
+      `${contactLabel(row.icon)} ${row.text}`
+    )}</div>`;
+  }
+  const classes = ["line", row.size, row.align];
+  if (row.bold) classes.push("bold");
+  if (row.invert) classes.push("invert");
+  return `<div class="${classes.join(" ")}">${escapeHtml(row.text)}</div>`;
+};
+
+/**
+ * The print-ready document the OS print dialog renders.
+ *
+ * `preview` carries the slip's rows with the sizes the template asks for; the
+ * plain `lines` are only the text, which is why a document built from them alone
+ * printed every row at one size. Callers that have a preview (every receipt and
+ * kitchen slip) print with it; a printer test page passes none.
+ */
+export function printDocumentHtml(
+  lines: string[],
+  title: string,
+  paperWidthMm: number,
+  preview?: SlipPreview
+): string {
+  const columns = preview?.columns || 48;
+  const fontSizeMm = printFontSizeMm(paperWidthMm, columns).toFixed(2);
+  const safeTitle = escapeHtml(title);
+  const receiptLines = preview
+    ? preview.rows.map(printDocumentRow).join("")
+    : lines.map((line) => `<div class="line">${escapeHtml(line)}</div>`).join("");
+
+  return `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${safeTitle}</title>
+    <style>
+      @page { size: ${paperWidthMm}mm auto; margin: 0; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: #e5e7eb;
+        color: #111827;
+        font-family: "Courier New", monospace;
+        font-size: ${fontSizeMm}mm;
+        font-weight: 400;
+        line-height: 1.35;
+      }
+      .toolbar {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        padding: 10px;
+        text-align: center;
+        background: #111827;
+        font-size: 12px;
+      }
+      .toolbar button {
+        border: 0;
+        border-radius: 4px;
+        padding: 8px 14px;
+        color: #fff;
+        background: #2563eb;
+        font: inherit;
+      }
+      .receipt {
+        width: ${paperWidthMm}mm;
+        min-height: 40mm;
+        margin: 12px auto;
+        padding: ${DOC_PADDING_MM}mm;
+        overflow: hidden;
+        background: #fff;
+        line-height: 1.35;
+      }
+      .line {
+        min-height: 1.35em;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
+      .line.left { transform-origin: left center; }
+      .line.center { text-align: center; transform-origin: center; }
+      .line.right { text-align: right; transform-origin: right center; }
+      .line.bold { font-weight: 700; }
+      .line.invert { background: #111827; color: #fff; }
+      /* Height doubles the font; width doubles with scaleX. The layout already
+         wraps a wide row at half the columns, so each size is magnified once:
+         tall is 2H1W, wide is 1H2W, huge is 2H2W - as the printer sends them. */
+      .tall { font-size: 2em; transform: scaleX(0.5); }
+      .wide { transform: scaleX(2); }
+      .huge { font-size: 2em; }
+      .gap { height: 1.35em; }
+      @media print {
+        body { background: #fff; }
+        .toolbar { display: none; }
+        .receipt { margin: 0; box-shadow: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="toolbar"><button type="button" onclick="window.print()">Print</button></div>
+    <main class="receipt">${receiptLines}</main>
+    <script>
+      window.addEventListener("load", function () {
+        window.setTimeout(function () { window.print(); }, 0);
+      });
+    <\/script>
+  </body>
+</html>`;
+}
+
 const measureLines = (doc: jsPDF, lines: string[], widthMm: number) => {
   const maxWidth = widthMm - MARGIN_MM * 2;
   let count = 0;
@@ -228,11 +370,6 @@ export async function printLinesWithBrowserDialog(
 
   const printWindow = resolvePrintWindow();
 
-  const safeTitle = escapeHtml(title);
-  const receiptLines = lines
-    .map((line) => `<div class="line">${escapeHtml(line)}</div>`)
-    .join("");
-
   try {
     try {
       printWindow.opener = null;
@@ -240,67 +377,7 @@ export async function printLinesWithBrowserDialog(
       // Hidden iframes used on Android may not allow opener writes.
     }
     printWindow.document.open();
-    printWindow.document.write(`<!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>${safeTitle}</title>
-    <style>
-      @page { size: ${paperWidthMm}mm auto; margin: 0; }
-      * { box-sizing: border-box; }
-      body {
-        margin: 0;
-        background: #e5e7eb;
-        color: #111827;
-        font: 600 12px/1.35 "Courier New", monospace;
-      }
-      .toolbar {
-        position: sticky;
-        top: 0;
-        z-index: 1;
-        padding: 10px;
-        text-align: center;
-        background: #111827;
-      }
-      .toolbar button {
-        border: 0;
-        border-radius: 4px;
-        padding: 8px 14px;
-        color: #fff;
-        background: #2563eb;
-        font: inherit;
-      }
-      .receipt {
-        width: ${paperWidthMm}mm;
-        min-height: 40mm;
-        margin: 12px auto;
-        padding: 4mm;
-        overflow: hidden;
-        background: #fff;
-      }
-      .line {
-        min-height: 1.35em;
-        white-space: pre-wrap;
-        overflow-wrap: anywhere;
-      }
-      @media print {
-        body { background: #fff; }
-        .toolbar { display: none; }
-        .receipt { margin: 0; box-shadow: none; }
-      }
-    </style>
-  </head>
-  <body>
-    <div class="toolbar"><button type="button" onclick="window.print()">Print</button></div>
-    <main class="receipt">${receiptLines}</main>
-    <script>
-      window.addEventListener("load", function () {
-        window.setTimeout(function () { window.print(); }, 0);
-      });
-    <\/script>
-  </body>
-</html>`);
+    printWindow.document.write(printDocumentHtml(lines, title, paperWidthMm, preview));
     printWindow.document.close();
   } catch (caught) {
     try {

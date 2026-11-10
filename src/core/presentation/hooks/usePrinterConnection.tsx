@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { KdsTicket } from "../../domain/entities/Cashier";
+import { KitchenPrinter } from "../../domain/entities/KitchenPrinter";
 import { IKitchenPrinterService } from "../../domain/services/IKitchenPrinterService";
+import { IKdsStationService } from "../../domain/services/IKdsStationService";
 import { IPrintTemplateService } from "../../domain/services/IPrintTemplateService";
 import type { ISalesOrderService } from "../../domain/services/ISalesOrderService";
 import {
@@ -34,7 +36,9 @@ import { checkoutCopies, copySlip } from "@/lib/printing/receiptCopies";
 import { printPlaceToTemplateType, pickSavedPrintTemplate } from "@/lib/printing/selectPrintTemplate";
 import {
   PRINTER_BINDINGS_CHANGED,
+  PrinterArea,
   PrinterBinding,
+  PrinterSector,
   PrinterTransport,
   listStoredPrinterBindings,
   readPrinterBindings,
@@ -42,6 +46,7 @@ import {
   resolveBindingsForPlace,
   savePrinterBinding,
   setDefaultPrinterBinding,
+  takesArea,
 } from "@/lib/pos/printerBindingStorage";
 
 /** The company prints are headed with, loaded once per signed-in company. */
@@ -224,37 +229,142 @@ export function usePrinterConnection(
    * Desktop always has its local binding, so this never runs there.
    */
   const backendTargets = useCallback(
-    async (place: PrintPlace): Promise<PrinterBinding[]> => {
+    async (place: PrintPlace, area?: PrinterArea): Promise<PrinterBinding[]> => {
       if (!isBrowserPrinting()) return [];
+      // A kitchen ticket is not printed for an area, only a slip is.
+      const wanted = takesArea(place) ? area : undefined;
       try {
         const result = await printerService.list({
           page: 1,
           limit: 100,
           locationId: locationId || undefined,
+          sector: place,
+          ...(wanted ? { area: wanted } : {}),
         });
-        return result.printers
+        const reachable = result.printers
           .filter((printer) => Boolean(printer.ipAddress))
           .filter(
             (printer) =>
               !printer.sectors?.length || printer.sectors.includes(place)
           )
-          .map((printer) => ({
-            id: `backend:${printer.id}`,
-            backendPrinterId: printer.id,
-            transport: "NETWORK" as const,
-            displayName: printer.name,
-            host: printer.ipAddress,
-            port: printer.port,
-            sectors: printer.sectors,
-            lastVerifiedAt: "",
-            lastError: null,
-          }));
+          // A printer set up for other areas of the venue never prints this one.
+          .filter(
+            (printer) =>
+              !wanted || !printer.printsFor?.length || printer.printsFor.includes(wanted)
+          );
+        // A printer set up for the area beats one that names no area at all, the
+        // same way the local bindings rank them: an unticked bar counter must not
+        // take the KTV's slip alongside the KTV's own.
+        const declared = wanted
+          ? reachable.filter((printer) => Boolean(printer.printsFor?.length))
+          : [];
+        return (declared.length ? declared : reachable).map((printer) => ({
+          id: `backend:${printer.id}`,
+          backendPrinterId: printer.id,
+          transport: "NETWORK" as const,
+          displayName: printer.name,
+          host: printer.ipAddress,
+          port: printer.port,
+          sectors: printer.sectors,
+          printsFor: printer.printsFor,
+          lastVerifiedAt: "",
+          lastError: null,
+        }));
       } catch {
         return [];
       }
     },
     [locationId, printerService]
   );
+
+  /**
+   * The register's bindings, with the print sectors the back office now gives
+   * their printers.
+   *
+   * A binding only stores the sectors its printer had the last time that printer
+   * was saved on this device, and only when the save's test print succeeded. So a
+   * binding can name no sectors at all (saved before sectors existed) or ones the
+   * back office has since changed — and then a KDS printer prints the guest's
+   * bill. The printer record is the source of truth, so it decides here.
+   */
+  const bindingsWithSectors = useCallback(async () => {
+    const current = currentBindings();
+    if (!current.bindings.length) return current;
+    let printers: KitchenPrinter[];
+    try {
+      const result = await printerService.list({
+        page: 1,
+        limit: 100,
+        locationId: locationId || undefined,
+      });
+      printers = result.printers;
+    } catch {
+      return current;
+    }
+    if (!printers.length) return current;
+
+    const byAddress = new Map<string, string>();
+    const sectorsOf = new Map<string, PrinterSector[]>();
+    const areasOf = new Map<string, PrinterArea[]>();
+    for (const printer of printers) {
+      sectorsOf.set(printer.id, printer.sectors || []);
+      areasOf.set(printer.id, printer.printsFor || []);
+      if (printer.ipAddress) {
+        byAddress.set(
+          `${printer.ipAddress.trim().toLowerCase()}:${printer.port || 9100}`,
+          printer.id
+        );
+      }
+    }
+    const recordFor = (binding: PrinterBinding): string | undefined =>
+      (binding.backendPrinterId && sectorsOf.has(binding.backendPrinterId)
+        ? binding.backendPrinterId
+        : undefined) ||
+      (binding.transport === "NETWORK" && binding.host
+        ? byAddress.get(
+            `${binding.host.trim().toLowerCase()}:${binding.port || 9100}`
+          )
+        : undefined);
+    const sectorsFor = (binding: PrinterBinding): PrinterSector[] | undefined => {
+      const id = recordFor(binding);
+      const declared = id ? sectorsOf.get(id) : undefined;
+      return declared?.length ? declared : undefined;
+    };
+    const areasFor = (binding: PrinterBinding): PrinterArea[] | undefined => {
+      // The record is the authority even when the back office cleared its places:
+      // an empty answer is a printer that names no area, not an answer to ignore.
+      const id = recordFor(binding);
+      return id ? areasOf.get(id) : undefined;
+    };
+
+    let changed = false;
+    const bindings = current.bindings.map((binding) => {
+      const sectors = sectorsFor(binding);
+      const printsFor = areasFor(binding);
+      const sectorsSame =
+        !sectors ||
+        (binding.sectors?.length === sectors.length &&
+          sectors.every((sector) => binding.sectors?.includes(sector)));
+      const areasSame =
+        !printsFor ||
+        (binding.printsFor?.length === printsFor.length &&
+          printsFor.every((area) => binding.printsFor?.includes(area)));
+      if (sectorsSame && areasSame) return binding;
+      changed = true;
+      return {
+        ...binding,
+        ...(sectors ? { sectors } : {}),
+        ...(printsFor ? { printsFor } : {}),
+      };
+    });
+    if (!changed) return current;
+    return {
+      bindings,
+      defaultBinding:
+        bindings.find((binding) => binding.id === current.defaultBinding?.id) ||
+        current.defaultBinding,
+    };
+  }, [currentBindings, locationId, printerService]);
 
   /**
    * The template a slip prints with: what the server resolves, and when it
@@ -296,6 +406,27 @@ export function usePrinterConnection(
     [locationId]
   );
 
+  /**
+   * The outlet's KDS stations, for a kitchen print from a caller that has none to
+   * hand - a room tablet's order, say. Without them a ticket can only go to the
+   * till's default printer, which is how a room's drink came out at the kitchen.
+   */
+  const stationsFor = useCallback(async (): Promise<StationRoute[]> => {
+    if (!locationId) return [];
+    try {
+      const service = container.resolve<IKdsStationService>("kdsStationService");
+      const listed = await service.list({ page: 1, limit: 100, locationId });
+      return (listed?.stations || []).map((station) => ({
+        id: station.id,
+        name: station.name,
+        printerIds: station.printerIds || [],
+        categoryIds: station.routingRules?.categoryIds || [],
+      }));
+    } catch {
+      return [];
+    }
+  }, [locationId]);
+
   const printKitchen = useCallback(
     async (
       slip: KitchenSlip,
@@ -304,6 +435,9 @@ export function usePrinterConnection(
     ): Promise<KitchenPrintPlan> => {
       const client = await configureClient(tenantId, registerId);
       const current = currentBindings();
+      // A caller with no station list (a room tablet's order) still has to reach
+      // the station of each item's category, so the outlet's stations are read here.
+      const routes = stations.length ? stations : await stationsFor();
       const resolved = slip.template ? undefined : await templateFor("KDS");
       const template = slip.template || resolved?.settings;
       const paperWidth = slip.paperWidth || resolved?.paperWidth;
@@ -312,7 +446,7 @@ export function usePrinterConnection(
         current.bindings,
         current.defaultBinding,
         slip.stationId,
-        stations,
+        routes,
         options
       );
       const lines = slip.lines || [];
@@ -329,9 +463,10 @@ export function usePrinterConnection(
       // returned untouched so the caller can surface the unrouted lines.
       let jobs: PrinterJob[] = plan.jobs;
       if (!options.requireStationRouting && !jobs.length && lines.length) {
+        const kds = await bindingsWithSectors();
         const localTargets = resolveBindingsForPlace(
-          current.bindings,
-          current.defaultBinding,
+          kds.bindings,
+          kds.defaultBinding,
           "KDS"
         );
         const targets = localTargets.length
@@ -362,16 +497,22 @@ export function usePrinterConnection(
       }
       return plan;
     },
-    [backendTargets, currentBindings, registerId, templateFor, tenantId]
+    [backendTargets, bindingsWithSectors, currentBindings, registerId, stationsFor, templateFor, tenantId]
   );
 
   const printReceipt = useCallback(
     async (receipt: SaleReceipt) => {
       const client = await configureClient(tenantId, registerId);
+      const current = await bindingsWithSectors();
+      const area = receipt.area;
       const targetsFor = async (place: PrintPlace) => {
-        const current = currentBindings();
-        const local = resolveBindingsForPlace(current.bindings, current.defaultBinding, place);
-        return local.length ? local : backendTargets(place);
+        const local = resolveBindingsForPlace(
+          current.bindings,
+          current.defaultBinding,
+          place,
+          area
+        );
+        return local.length ? local : backendTargets(place, area);
       };
 
       const printOne = async (slip: SaleReceipt) => {
@@ -430,7 +571,7 @@ export function usePrinterConnection(
         await printOne(copySlip(sale, copy));
       }
     },
-    [backendTargets, currentBindings, registerId, templateFor, tenantId]
+    [backendTargets, bindingsWithSectors, registerId, templateFor, tenantId]
   );
 
   const ticketWithModifiers = useCallback(async (ticket: KdsTicket) => {

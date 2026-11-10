@@ -3,7 +3,9 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/Button";
 import {
   KitchenPrinter,
+  PRINTER_AREAS,
   PRINTER_SECTORS,
+  PrinterArea,
   PrinterSector,
 } from "@/core/domain/entities/KitchenPrinter";
 import { useAuth } from "@/core/presentation/hooks/useAuth";
@@ -30,6 +32,12 @@ const SECTOR_LABEL_KEYS: Record<PrinterSector, string> = {
   CHECKOUT: "settings.printer.sectorCheckout",
   FINANCE: "settings.printer.sectorFinance",
   KDS: "settings.printer.sectorKds",
+};
+
+const AREA_LABEL_KEYS: Record<PrinterArea, string> = {
+  BAR: "settings.printer.areaBar",
+  KTV: "settings.printer.areaKtv",
+  SPA: "settings.printer.areaSpa",
 };
 
 export function PrinterSettingsPanel() {
@@ -65,7 +73,15 @@ export function PrinterSettingsPanel() {
   const [isActive, setIsActive] = useState(false);
   const [isDefault, setIsDefault] = useState(false);
   const [sectors, setSectors] = useState<PrinterSector[]>([]);
+  const [printsFor, setPrintsFor] = useState<PrinterArea[]>([]);
   const [stationIds, setStationIds] = useState<string[]>([]);
+  /**
+   * Whether the operator has chosen the stations by hand in this session. Until
+   * they do, the stations a printer already serves are kept as they are: the
+   * checkbox list starts empty while it loads, and saving that would clear every
+   * station the printer belongs to.
+   */
+  const [stationsTouched, setStationsTouched] = useState(false);
   const [verifiedBinding, setVerifiedBinding] = useState<PrinterBinding | null>(
     null
   );
@@ -131,7 +147,9 @@ export function PrinterSettingsPanel() {
     setIsActive(false);
     setIsDefault(false);
     setSectors([]);
+    setPrintsFor([]);
     setStationIds([]);
+    setStationsTouched(false);
     setVerifiedBinding(null);
     setNotice(null);
     setLocalError(null);
@@ -153,11 +171,13 @@ export function PrinterSettingsPanel() {
     setIsActive(printer.isActive);
     setIsDefault(connection.defaultBinding?.id === binding?.id);
     setSectors(printer.sectors || []);
+    setPrintsFor(printer.printsFor || []);
     setStationIds(
       stations
         .filter((station) => station.printerIds.includes(printer.id))
         .map((station) => station.id)
     );
+    setStationsTouched(false);
     setVerifiedBinding(binding || null);
     setNotice(null);
     setLocalError(null);
@@ -172,11 +192,14 @@ export function PrinterSettingsPanel() {
     host: transport === "NETWORK" ? ipAddress.trim() : undefined,
     port: transport === "NETWORK" ? Number(port) : undefined,
     sectors,
+    printsFor,
     lastVerifiedAt: "",
     lastError: null,
   });
 
   const servesKds = sectors.includes("KDS");
+  /** A printer that prints slips has to say which parts of the venue they belong to. */
+  const printsSlips = sectors.some((sector) => sector !== "KDS");
   const canAssignStations =
     servesKds && Boolean(selectedBackendId || transport === "NETWORK");
 
@@ -185,9 +208,22 @@ export function PrinterSettingsPanel() {
       const next = current.includes(sector)
         ? current.filter((item) => item !== sector)
         : [...current, sector];
-      if (!next.includes("KDS")) setStationIds([]);
+      if (!next.includes("KDS")) {
+        setStationIds([]);
+        // Dropping KDS from a printer is a deliberate "stop sending tickets
+        // here", so its station assignments go with it.
+        setStationsTouched(true);
+      }
       return next;
     });
+  };
+
+  const toggleArea = (area: PrinterArea) => {
+    setPrintsFor((current) =>
+      current.includes(area)
+        ? current.filter((item) => item !== area)
+        : [...current, area]
+    );
   };
 
   const testConnection = async () => {
@@ -270,40 +306,68 @@ export function PrinterSettingsPanel() {
     }
     if (transport !== "NETWORK" && (!connected || !verified)) return;
 
+    // A slip printer serves a place of the venue: Bar, KTV or SPA. Without one it
+    // would take every place's slips, which is how a KTV bill reached the bar.
+    if (printsSlips && !printsFor.length) {
+      setLocalError(t("settings.printer.placesRequired"));
+      return;
+    }
+
     try {
-      const payload = {
+      const base = {
         locationId: activeLocationId,
         name: name.trim(),
         ...(networkAddress ? { ipAddress: networkAddress } : {}),
         port: portNumber,
         sectors,
-        isActive: connected,
+        printsFor,
       };
+      // The printer record is shared by every till, so this device never writes
+      // its own reachability into it: one till that cannot reach the paper must
+      // not switch the printer off for the others. A new record starts active.
       const printer = selectedBackendId
-        ? await updatePrinter(selectedBackendId, payload)
-        : await createPrinter({ tenantId, ...payload });
+        ? await updatePrinter(selectedBackendId, base)
+        : await createPrinter({ tenantId, ...base, isActive: true });
       setSelectedBackendId(printer.id);
-      setSectors(printer.sectors?.length ? printer.sectors : sectors);
-      if (connected && verified) {
-        const binding = {
-          ...verified,
-          id: verified.id || printer.id,
-          backendPrinterId: printer.id,
-          host: printer.ipAddress,
-          port: printer.port,
-          sectors: printer.sectors?.length ? printer.sectors : sectors,
-        };
-        connection.saveBinding(binding, isDefault);
-        setSelectedBindingId(binding.id);
-        setVerifiedBinding(binding);
-      } else if (selectedBindingId) {
-        connection.removeBinding(selectedBindingId);
-      }
+      const printerSectors = printer.sectors?.length ? printer.sectors : sectors;
+      setSectors(printerSectors);
+      const printerAreas = printer.printsFor?.length ? printer.printsFor : printsFor;
+      setPrintsFor(printerAreas);
+
+      // Save the printer on this device whether or not its test print answered.
+      // The operator asked for this printer here; a failed test must not leave
+      // the device running yesterday's configuration, which is what made a till
+      // have to be saved over and over before its paper came out right.
+      const binding: PrinterBinding = {
+        ...draft,
+        ...(verified || {}),
+        id: verified?.id || draft.id,
+        backendPrinterId: printer.id,
+        host: printer.ipAddress,
+        port: printer.port,
+        sectors: printerSectors,
+        // Kept on the device as well, so a till that cannot reach the printer list
+        // still knows which counter serves which area of the venue.
+        printsFor: printerAreas,
+      };
+      connection.saveBinding(binding, isDefault);
+      setSelectedBindingId(binding.id);
+      setVerifiedBinding(connected ? binding : null);
+
+      // Which stations this printer serves: what the operator ticked, or — when
+      // they did not touch the list — what it already serves. Sending a list
+      // seeded before the stations had loaded is what used to strip a printer
+      // from every station and stop the kitchen printing everywhere.
+      const serves = stations
+        .filter((station) => station.printerIds.includes(printer.id))
+        .map((station) => station.id);
       await syncStationAssignments(
         printer.id,
-        (printer.sectors?.length ? printer.sectors : sectors).includes("KDS")
-          ? stationIds
-          : []
+        !stationsTouched
+          ? serves
+          : printerSectors.includes("KDS")
+            ? stationIds
+            : []
       );
       setNotice(
         connected ? t("settings.printer.saved") : t("settings.printer.savedInactive")
@@ -363,6 +427,11 @@ export function PrinterSettingsPanel() {
                 {printer.sectors?.length
                   ? printer.sectors.join(" · ")
                   : t("settings.printer.noSectors")}
+              </span>
+              <span className="mt-1 block text-xs text-slate-500">
+                {printer.printsFor?.length
+                  ? printer.printsFor.join(" · ")
+                  : t("settings.printer.printForAll")}
               </span>
               <span className="mt-1 block text-xs text-slate-500">
                 {printer.ipAddress
@@ -598,6 +667,36 @@ export function PrinterSettingsPanel() {
             ))}
           </div>
         </fieldset>
+        {printsSlips ? (
+          <fieldset className="mt-4">
+            <legend className="text-sm text-slate-600">
+              {t("settings.printer.printFor")}
+            </legend>
+            <p className="mt-1 text-xs text-slate-500">
+              {t("settings.printer.printForHint")}
+            </p>
+            <div className="mt-2 grid gap-2 sm:grid-cols-3">
+              {PRINTER_AREAS.map((area) => (
+                <label
+                  key={area}
+                  className="flex items-center gap-2 text-sm text-slate-700"
+                >
+                  <input
+                    type="checkbox"
+                    checked={printsFor.includes(area)}
+                    onChange={() => toggleArea(area)}
+                  />
+                  {t(AREA_LABEL_KEYS[area])}
+                </label>
+              ))}
+            </div>
+            {!printsFor.length ? (
+              <p className="mt-1 text-xs text-amber-700">
+                {t("settings.printer.placesRequired")}
+              </p>
+            ) : null}
+          </fieldset>
+        ) : null}
         <div className="mt-4 flex flex-wrap gap-4 text-sm">
           <label className="flex items-center gap-2">
             <input
@@ -626,13 +725,14 @@ export function PrinterSettingsPanel() {
                   type="checkbox"
                   checked={stationIds.includes(station.id)}
                   disabled={stationsLoading || !canAssignStations}
-                  onChange={() =>
+                  onChange={() => {
+                    setStationsTouched(true);
                     setStationIds((current) =>
                       current.includes(station.id)
                         ? current.filter((id) => id !== station.id)
                         : [...current, station.id]
-                    )
-                  }
+                    );
+                  }}
                 />
                 {station.name}
               </label>

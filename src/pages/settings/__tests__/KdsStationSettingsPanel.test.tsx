@@ -101,6 +101,25 @@ describe("KdsStationSettingsPanel", () => {
     );
   });
 
+  it("will not save a station that carries no category", async () => {
+    render(<KdsStationSettingsPanel />);
+
+    fireEvent.change(screen.getByLabelText("settings.kdsStation.name"), {
+      target: { value: "Kitchen" },
+    });
+    fireEvent.click(screen.getByRole("checkbox", { name: "Drink printer" }));
+
+    const save = screen.getByRole("button", { name: "settings.kdsStation.save" });
+    // A station with no category would receive nothing, so it cannot be saved.
+    expect(save).toBeDisabled();
+    fireEvent.submit(save.closest("form") as HTMLFormElement);
+
+    expect(mocks.createStation).not.toHaveBeenCalled();
+    expect(
+      screen.getAllByText("settings.kdsStation.categoriesRequired").length
+    ).toBeGreaterThan(0);
+  });
+
   it("lets a category another station has be picked too, and says where else it is", () => {
     mocks.stations = [
       {

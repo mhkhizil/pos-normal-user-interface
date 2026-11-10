@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { RoomOrderView } from "@/core/domain/entities/RoomTablet";
 import { useRoomOrderAlerts } from "@/core/presentation/hooks/useRoomOrderAlerts";
 import { KitchenSlip } from "@/lib/printing/formatKdsTicket";
+import type { KitchenPrintPlan } from "@/lib/printing/routeKitchenPrint";
 import { toTabletSlip } from "@/lib/spa/tabletSlip";
 
 const PRINT_KEY = "print-tablet-orders";
@@ -25,7 +26,7 @@ export function RoomOrderAlerts({
   printKitchen,
 }: {
   enabled: boolean;
-  printKitchen: (slip: KitchenSlip) => Promise<unknown>;
+  printKitchen: (slip: KitchenSlip) => Promise<KitchenPrintPlan>;
 }) {
   const { t } = useTranslation();
   const [printHere, setPrintHere] = useState(readPrintSetting);
@@ -58,7 +59,25 @@ export function RoomOrderAlerts({
         void (async () => {
           try {
             const claim = await claimPrint(order.id);
-            if (claim.claimed) await printKitchen(toTabletSlip(claim.order));
+            if (!claim.claimed) return;
+            const plan = await printKitchen(toTabletSlip(claim.order));
+            // An item whose category no station carries, or a station whose printer
+            // this device does not have, would leave the kitchen without the order.
+            if (plan.unrouted.length) {
+              setError(
+                t("roomOrders.unrouted", {
+                  items: plan.unrouted.map((item) => item.name).join(", "),
+                })
+              );
+            } else if (plan.missingPrinterRoutes.length) {
+              setError(
+                t("roomOrders.stationPrinterMissing", {
+                  stations: plan.missingPrinterRoutes
+                    .map((route) => route.stationName)
+                    .join(", "),
+                })
+              );
+            }
           } catch (caught) {
             setError(caught instanceof Error ? caught.message : t("roomOrders.printFailed"));
           }

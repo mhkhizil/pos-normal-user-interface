@@ -36,11 +36,49 @@ const unwrap = <T>(response: ApiEnvelope<T> | T): T => {
   return response as T;
 };
 
-const asRecord = (value: unknown): RecordValue | undefined =>
-  value && typeof value === "object" ? (value as RecordValue) : undefined;
+const asRecord = (value: unknown): RecordValue | undefined => {
+  // A backend that keeps `settings` in a text column hands it back as JSON text:
+  // reading that as "no settings" sent every toggle back to its default.
+  if (typeof value === "string") {
+    const text = value.trim();
+    if (!text.startsWith("{")) return undefined;
+    try {
+      const parsed: unknown = JSON.parse(text);
+      return asRecord(parsed);
+    } catch {
+      return undefined;
+    }
+  }
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as RecordValue)
+    : undefined;
+};
 
-const asBoolean = (value: unknown, fallback: boolean) =>
-  typeof value === "boolean" ? value : fallback;
+const TRUE_TEXT = new Set(["true", "1", "yes", "on"]);
+const FALSE_TEXT = new Set(["false", "0", "no", "off"]);
+
+/**
+ * A saved toggle, whichever way the API spells it.
+ *
+ * The settings screen writes real booleans, but a JSON column, a form encoder or
+ * a PHP/CSV-ish serialiser can hand them back as "false" or 0. Treating those as
+ * "not a boolean" turned the switch back on, so unticking the address and phone
+ * on a checkout template kept printing them.
+ */
+const asBoolean = (value: unknown, fallback: boolean): boolean => {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value !== 0;
+  if (typeof value === "string") {
+    const text = value.trim().toLowerCase();
+    if (TRUE_TEXT.has(text)) return true;
+    if (FALSE_TEXT.has(text)) return false;
+  }
+  return fallback;
+};
+
+/** An optional flag, kept `undefined` when the API does not send the key at all. */
+const optionalBoolean = (value: unknown): boolean | undefined =>
+  value === undefined || value === null ? undefined : asBoolean(value, false);
 
 const toSettings = (value: unknown): PrintTemplateSettings => {
   const defaults = defaultPrintTemplateSettings();
@@ -120,7 +158,7 @@ const toTemplate = (item: RecordValue) => {
     type: isPrintTemplateType(rawType) ? rawType : "RECEIPT",
     name: String(item.name || ""),
     paperWidth: (item.paperWidth === "MM58" ? "MM58" : "MM80") as PrintPaperWidth,
-    isDefault: typeof item.isDefault === "boolean" ? item.isDefault : undefined,
+    isDefault: optionalBoolean(item.isDefault),
     source: item.source ? (String(item.source) as PrintTemplateSource) : undefined,
     settings: toSettings(item.settings),
     deletedAt: item.deletedAt ? String(item.deletedAt) : null,

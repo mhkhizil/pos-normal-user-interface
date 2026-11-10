@@ -384,7 +384,8 @@ export function PrintTemplateSettingsPanel() {
     draft.type === "SHIFT"
       ? (["cashier"] as const)
       : draft.type === "KITCHEN"
-      ? (["orderNumber"] as const)
+      ? // The ticket prints who sent it, so the switch is offered for it.
+        (["orderNumber", "cashier"] as const)
       : ([
           "orderNumber",
           "cashier",
@@ -398,8 +399,17 @@ export function PrintTemplateSettingsPanel() {
       : (["amountAfterDiscount", "totalPayment", "payTime"] as const);
   const headerFields =
     draft.type === "KITCHEN"
-      ? (["logo", "outletName"] as const)
-      : (["logo", "outletName", "address", "contact", "email"] as const);
+      ? // A kitchen ticket has no logo to print, so the switch is not offered.
+        (["outletName"] as const)
+      : draft.type === "FINANCE"
+        ? // An office copy is headed by no letterhead: no logo, no address or contact.
+          (["outletName"] as const)
+        : (["logo", "outletName", "address", "contact", "email"] as const);
+  const itemFields =
+    draft.type === "KITCHEN"
+      ? // A ticket carries no money, so there is nothing to subtotal by category.
+        (["qtyFirst", "price", "modifiers"] as const)
+      : (["qtyFirst", "price", "modifiers", "categorySubtotal"] as const);
 
   return (
     <form onSubmit={(event) => void save(event)} className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
@@ -693,17 +703,10 @@ export function PrintTemplateSettingsPanel() {
               </select>
             </label>
           ))}
-          {(
-            [
-              ["qtyFirst", "qtyFirst"],
-              ["price", "price"],
-              ["modifiers", "modifiers"],
-              ["categorySubtotal", "categorySubtotal"],
-            ] as const
-          ).map(([field, label]) => (
+          {itemFields.map((field) => (
             <ToggleField
               key={field}
-              label={t(`settings.printTemplate.${label}`)}
+              label={t(`settings.printTemplate.${field}`)}
               checked={settings.item[field]}
               onChange={(checked) =>
                 patchSettings({

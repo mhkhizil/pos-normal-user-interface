@@ -32,6 +32,32 @@ describe("ApiRoomTabletRepository", () => {
     expect(visit.rooms[0].orders[0]).toMatchObject({ status: "PREPARING", items: [{ name: "Ginger tea", quantity: 2, refunded: false }] });
   });
 
+  it("reads the category of each item, so its ticket can reach a station", async () => {
+    const get = vi.fn().mockResolvedValue({
+      data: [
+        {
+          id: "ro-1",
+          orderNumber: 4,
+          roomNumber: "S2",
+          items: [
+            { name: "Chinese fried noodle", quantity: 1, categoryId: "cat-chinese" },
+            { name: "Beer", quantity: 2, categoryId: "cat-drinks" },
+            { name: "No category item", quantity: 1 },
+          ],
+        },
+      ],
+    });
+    const repository = new ApiRoomTabletRepository({ get } as unknown as HttpClient);
+
+    const [order] = await repository.listRoomOrders(false);
+
+    expect(order.items.map((item) => item.categoryId)).toEqual([
+      "cat-chinese",
+      "cat-drinks",
+      null,
+    ]);
+  });
+
   it("places an order and claims a print", async () => {
     const post = vi
       .fn()

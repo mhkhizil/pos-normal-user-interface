@@ -39,6 +39,11 @@ const toPrinter = (item: RecordValue) =>
           ) as KitchenPrinter["sectors"]
       : [],
     isActive: item.isActive !== false,
+    printsFor: Array.isArray(item.printsFor)
+      ? (item.printsFor
+          .map((area) => String(area))
+          .filter((area) => ["BAR", "KTV", "SPA"].includes(area)) as KitchenPrinter["printsFor"])
+      : [],
     categories: Array.isArray(item.categories)
       ? item.categories.map((value) => {
           const route = value as RecordValue;

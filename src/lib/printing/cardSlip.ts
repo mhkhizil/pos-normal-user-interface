@@ -18,6 +18,9 @@ export function cardSlip(
 ): SaleReceipt {
   return {
     title,
+    // A card is topped up at the cashier, so the slip prints on the bar's counter
+    // rather than on every checkout printer of the outlet.
+    area: "BAR",
     receiptId: receipt.receiptId,
     paidAt: receipt.printedAt,
     facts: [

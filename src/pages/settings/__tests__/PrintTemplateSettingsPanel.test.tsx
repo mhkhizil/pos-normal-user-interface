@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PrintTemplateSettingsPanel } from "../PrintTemplateSettingsPanel";
 
@@ -82,6 +82,49 @@ describe("PrintTemplateSettingsPanel", () => {
         isDefault: true,
       })
     );
+  });
+
+  it("offers a kitchen template only the switches a ticket can print", () => {
+    render(<PrintTemplateSettingsPanel />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /settings.printTemplate.placeKdsHint/ })
+    );
+
+    // A kitchen ticket has no logo and no money: those switches are not offered.
+    expect(screen.queryByRole("checkbox", { name: "Logo" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("checkbox", { name: "settings.printTemplate.categorySubtotal" })
+    ).not.toBeInTheDocument();
+    // The ones it does print are.
+    for (const name of [
+      "settings.printTemplate.qtyFirst",
+      "settings.printTemplate.price",
+      "settings.printTemplate.cashier",
+    ]) {
+      expect(screen.getByRole("checkbox", { name })).toBeInTheDocument();
+    }
+  });
+
+  it("offers a finance template only the header lines an office copy prints", () => {
+    render(<PrintTemplateSettingsPanel />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /settings.printTemplate.placeFinanceHint/ })
+    );
+
+    // A finance copy carries no letterhead, so those switches are not offered.
+    for (const name of [
+      "Logo",
+      "settings.printTemplate.address",
+      "Phone",
+      "Email",
+    ]) {
+      expect(screen.queryByRole("checkbox", { name })).not.toBeInTheDocument();
+    }
+    expect(
+      screen.getByRole("checkbox", { name: "settings.printTemplate.outletName" })
+    ).toBeInTheDocument();
   });
 
   it("creates a finance template as its own type", async () => {
@@ -214,5 +257,26 @@ describe("PrintTemplateSettingsPanel", () => {
 
     fireEvent.click(toggle);
     expect(saveKdsDeleteSlip).toHaveBeenCalledWith(false);
+  });
+
+  it("saves the header lines the operator switched off", async () => {
+    createTemplate.mockResolvedValue({ id: "template-1" });
+    render(<PrintTemplateSettingsPanel />);
+
+    // The address label has no translation in this test's mock, so it reads as its key.
+    for (const name of ["Email", "Phone", "settings.printTemplate.address"]) {
+      fireEvent.click(screen.getByRole("checkbox", { name }));
+    }
+    fireEvent.click(
+      screen.getByRole("button", { name: "settings.printTemplate.save" })
+    );
+
+    await waitFor(() => expect(createTemplate).toHaveBeenCalled());
+    const [payload] = createTemplate.mock.calls[0];
+    expect(payload.settings.header).toMatchObject({
+      address: false,
+      contact: false,
+      email: false,
+    });
   });
 });
