@@ -135,6 +135,12 @@ export function KdsStationSettingsPanel() {
     if (!activeLocationId || !user?.tenantId) return;
     setLocalError(null);
     setNotice(null);
+    // An item only prints at the station that carries its category, so a station
+    // without one would silently receive nothing.
+    if (!draft.categoryIds.length) {
+      setLocalError(t("settings.kdsStation.categoriesRequired"));
+      return;
+    }
     const routingRules = { categoryIds: draft.categoryIds };
     try {
       if (draft.id) {
@@ -281,7 +287,11 @@ export function KdsStationSettingsPanel() {
               .map((id) => categoryName.get(id) || id)
               .join(", ")}
           </p>
-        ) : null}
+        ) : (
+          <p className="mt-3 text-xs text-amber-700">
+            {t("settings.kdsStation.categoriesRequired")}
+          </p>
+        )}
 
         {(localError || error) ? (
           <p className="mt-3 text-sm text-red-600">{localError || error}</p>
@@ -291,7 +301,7 @@ export function KdsStationSettingsPanel() {
           <Button
             type="submit"
             isLoading={isLoading}
-            disabled={!draft.name.trim() || !draft.printerIds.length}
+            disabled={!draft.name.trim() || !draft.printerIds.length || !draft.categoryIds.length}
           >
             {t("settings.kdsStation.save")}
           </Button>

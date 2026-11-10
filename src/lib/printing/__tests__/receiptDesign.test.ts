@@ -247,7 +247,7 @@ describe("a KTV bill", () => {
 });
 
 describe("kitchen slip design", () => {
-  it("puts the station in reverse and the place in huge letters", () => {
+  it("puts the station in reverse and the place at the ticket's own size", () => {
     const printed = formatKitchenSlip({
       title: "KDS-0012",
       stationName: "Bar",
@@ -255,8 +255,10 @@ describe("kitchen slip design", () => {
       lines: [{ name: "Beer", quantity: "2" }],
     });
     expect(printed).toContain("\x1dB\x01");
-    expect(printed).toContain("\x1b!\x08\x1d!\x11KTV K3");
-    expect(printed).toContain("\x1b!\x08\x1d!\x102 x BEER");
+    // No template: the ticket prints at the bill's normal size, not the old
+    // built-in huge place line.
+    expect(printed).toContain("\x1b!\x08\x1d!\x00KTV K3");
+    expect(printed).toContain("\x1b!\x08\x1d!\x002 x BEER");
   });
 
   it("shows the time sent, notes, seat and how many items", () => {

@@ -373,6 +373,7 @@ export function KtvRoomPage() {
           title: "RECEIPT",
           sale: true,
           place: "CHECKOUT",
+          area: "KTV",
           showLogo: true,
           showPrices: true,
           receiptId: session.salesOrderId,

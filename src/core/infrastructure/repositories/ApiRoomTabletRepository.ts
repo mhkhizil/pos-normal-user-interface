@@ -101,6 +101,8 @@ const toRoomOrder = (value: unknown): RoomOrderView => {
         name: text(line.name),
         quantity: Number(line.quantity || 0),
         status: text(line.status, "PENDING"),
+        // The station that prints the ticket is chosen by this category.
+        categoryId: orNull(line.categoryId),
       };
     }),
   };

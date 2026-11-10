@@ -107,7 +107,6 @@ interface OrderPanelProps {
   paymentInputRef: RefObject<HTMLInputElement | null>;
   isLoading: boolean;
   checkoutBlocked?: boolean;
-  includeTax?: boolean;
   canCreateOrder?: boolean;
   isDineInService?: boolean;
   feedback?: string | null;
@@ -208,7 +207,6 @@ export function OrderPanel({
   selectedSession,
   isLoading,
   checkoutBlocked = false,
-  includeTax = true,
   canCreateOrder = true,
   isDineInService = false,
   feedback,
@@ -544,27 +542,17 @@ export function OrderPanel({
                   (entry) =>
                     billLines?.find((priced) => priced.id === entry.id) || entry
                 );
-                const tax = pricedLines.reduce(
+                // A row shows what the item itself costs. Tax is a bill-level row
+                // in the breakdown, so it is never added to — or taken out of — a
+                // single item's price here.
+                const lineTotal = pricedLines.reduce(
                   (sum, pricedLine) =>
                     sum +
-                    (includeTax
-                      ? pricedLine.taxInclusive
-                        ? 0
-                        : Number(pricedLine.taxAmount || 0)
-                      : pricedLine.taxInclusive
-                        ? -Number(pricedLine.taxAmount || 0)
-                        : 0),
+                    Number(pricedLine.quantity || 0) *
+                      Number(pricedLine.unitPrice || 0) -
+                    Number(pricedLine.lineDiscount || 0),
                   0
                 );
-                const lineTotal =
-                  pricedLines.reduce(
-                    (sum, pricedLine) =>
-                      sum +
-                      Number(pricedLine.quantity || 0) *
-                        Number(pricedLine.unitPrice || 0) -
-                      Number(pricedLine.lineDiscount || 0),
-                    0
-                  ) + tax;
                 const quantity = Number(line.quantity || 0);
                 const quantityLabel =
                   Number.isFinite(quantity) && quantity % 1 === 0

@@ -15,6 +15,26 @@ const sha = 'a'.repeat(40);
 const oldSha = 'b'.repeat(40);
 const source = readFileSync(path.join(__dirname, 'deploy-production.sh'), 'utf8');
 
+test('production workflow verifies both active sites, never the retired domain', () => {
+  const workflow = readFileSync(path.join(__dirname, '../.github/workflows/deploy.yml'), 'utf8');
+  assert.doesNotMatch(workflow, /yankinfoodhouse\.mmlnkits\.com/i);
+  assert.match(workflow, /https:\/\/app\.mmlnkits\.com\/healthz/);
+  assert.match(workflow, /https:\/\/app\.mmlnkits\.com\/login/);
+  assert.match(workflow, /https:\/\/privatevip\.mmlnkits\.com\/healthz/);
+  assert.match(workflow, /https:\/\/privatevip\.mmlnkits\.com\/login/);
+  assert.match(workflow, /needs: ci/);
+  assert.match(workflow, /StrictHostKeyChecking=yes/);
+});
+
+test('installed dual-site command verifies both running revisions before recording success', () => {
+  const dual = readFileSync(path.join(__dirname, 'deploy-both-production.sh'), 'utf8');
+  assert.match(dual, /verify_site app\.mmlnkits\.com 8081/);
+  assert.match(dual, /verify_revision vision-pos-web/);
+  assert.match(dual, /verify_revision yankinfoodhouse-web/);
+  assert.match(dual, /"\$revision" != "\$sha"/);
+  assert.ok(dual.indexOf('verify_revision yankinfoodhouse-web') < dual.indexOf('> /etc/privatevip/deployed-sha'));
+});
+
 function runDeployment(scenario, command = `deploy ${sha}`) {
   const directory = mkdtempSync(path.join(tmpdir(), 'vision-deploy-test-'));
   const shellDirectory = directory.replaceAll('\\', '/');

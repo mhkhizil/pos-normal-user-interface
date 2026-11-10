@@ -95,7 +95,13 @@ export interface RoomOrderView {
   acknowledgedAt: string | null;
   deliveredAt: string | null;
   printClaimedAt: string | null;
-  items: { name: string; quantity: number; status: string }[];
+  items: {
+    name: string;
+    quantity: number;
+    status: string;
+    /** The menu category, so the ticket prints at that category's station. */
+    categoryId?: string | null;
+  }[];
 }
 
 export interface TabletRoom {
