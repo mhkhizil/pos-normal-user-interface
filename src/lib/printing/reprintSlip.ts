@@ -177,7 +177,7 @@ export function reprintSlip(input: ReprintInput): SaleReceipt {
   const printable = kept.map((line) => {
     const modifiers = withNote(modifierPrintText(line.selectedModifiers), hostessNote(line));
     const away = givenAwayAmount(line) > 0;
-    const name = line.productName || line.variantName || text.item;
+    const name = lineDisplayName(line) || line.variantName || text.item;
     const menuPrice =
       input.isFeeLine(line) || line.menuPrice === undefined
         ? undefined

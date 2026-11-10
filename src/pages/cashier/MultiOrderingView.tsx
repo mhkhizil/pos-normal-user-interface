@@ -196,7 +196,7 @@ export function MultiOrderingView({
                     <span className="block truncate">
                       {lineName} × {Number(line.quantity)}
                     </span>
-                    {lineVariant && lineVariant !== lineName ? (
+                    {lineVariant && !lineName.includes(lineVariant) ? (
                       <span className="block truncate text-[10px] text-slate-400">
                         {lineVariant}
                       </span>
@@ -275,7 +275,7 @@ export function MultiOrderingView({
                     >
                       <span className="min-w-0">
                         <span className="block truncate">{lineName}</span>
-                        {lineVariant && lineVariant !== lineName ? (
+                        {lineVariant && !lineName.includes(lineVariant) ? (
                           <span className="block truncate text-[10px] text-slate-500">
                             {lineVariant}
                           </span>

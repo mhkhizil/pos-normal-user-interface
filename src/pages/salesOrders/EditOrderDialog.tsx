@@ -10,7 +10,7 @@ import type {
   EditSalesOrderResultDTO,
 } from "@/core/application/dtos/SalesOrderDTO";
 import type { Customer } from "@/core/domain/entities/Customer";
-import type { Product, SalesOrder } from "@/core/domain/entities/Cashier";
+import type { Product, ProductVariant, SalesOrder } from "@/core/domain/entities/Cashier";
 import { useCashier } from "@/core/presentation/hooks/useCashier";
 import { useCustomerManagement } from "@/core/presentation/hooks/useCustomerManagement";
 import { useGuestWalletManagement } from "@/core/presentation/hooks/useGuestWalletManagement";
@@ -26,6 +26,7 @@ import {
   OrderEditState,
   relabelChoices,
 } from "@/lib/pos/orderEdit";
+import { variantOptionsName, withVariant } from "@/lib/pos/orderListDisplay";
 import { CardTapDialog } from "../spa/CardTapDialog";
 import { HostessPicker } from "../spa/HostessPicker";
 
@@ -79,6 +80,10 @@ export function EditOrderDialog({
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [variantChoice, setVariantChoice] = useState<{
+    product: Product;
+    variants: ProductVariant[];
+  } | null>(null);
   const [customerSearch, setCustomerSearch] = useState("");
   const [customerResults, setCustomerResults] = useState<Customer[]>([]);
   const [hostessFor, setHostessFor] = useState<string | null>(null);
@@ -178,12 +183,22 @@ export function EditOrderDialog({
         : current
     );
 
+  const variantPrice = (product: Product, variant: ProductVariant) =>
+    Number(product.basePrice || 0) + Number(variant.priceModifier || 0);
+
   const addProduct = async (product: Product) => {
     setSearch("");
     const variants = await fetchProductVariants(product.id);
-    const variant = variants[0];
-    if (!variant) return;
-    const price = Number(product.basePrice || 0) + Number(variant.priceModifier || 0);
+    if (variants.length > 1) {
+      setVariantChoice({ product, variants });
+      return;
+    }
+    if (variants[0]) addVariant(product, variants[0]);
+  };
+
+  const addVariant = (product: Product, variant: ProductVariant) => {
+    setVariantChoice(null);
+    const price = variantPrice(product, variant);
     setState((current) =>
       current
         ? {
@@ -193,7 +208,7 @@ export function EditOrderDialog({
               {
                 key: `new-${Date.now()}-${variant.id}`,
                 variantId: variant.id,
-                name: product.name,
+                name: withVariant(product.name, variantOptionsName(variant)),
                 quantity: 1,
                 unitPrice: String(price),
                 removed: false,
@@ -302,6 +317,33 @@ export function EditOrderDialog({
                   + {product.name} · {money(product.basePrice)}
                 </button>
               ))}
+            </div>
+          ) : null}
+          {variantChoice ? (
+            <div className="space-y-1">
+              <p className="text-xs text-slate-400">
+                {variantChoice.product.name} · {t("cashier.productMenu.chooseVariant")}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {variantChoice.variants.map((variant) => (
+                  <button
+                    key={variant.id}
+                    type="button"
+                    onClick={() => addVariant(variantChoice.product, variant)}
+                    className="rounded border border-slate-600 px-2 py-1 text-sm hover:border-[#1a9bff]"
+                  >
+                    + {variantOptionsName(variant) || variant.variantSku} ·{" "}
+                    {money(variantPrice(variantChoice.product, variant))}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setVariantChoice(null)}
+                  className="rounded px-2 py-1 text-sm text-slate-400 hover:text-slate-200"
+                >
+                  {t("common.cancel")}
+                </button>
+              </div>
             </div>
           ) : null}
           <ul className="divide-y divide-slate-800">

@@ -16,6 +16,7 @@ import {
 import { OptionGroup } from "@/components/modifiers/OptionGroup";
 import { ItemNoteField } from "@/components/notes/ItemNoteField";
 import { cleanNote } from "@/lib/notes/itemNote";
+import { formatPosMoney, variantOptionsName } from "@/lib/pos/orderListDisplay";
 
 interface ProductMenuProps {
   products: Product[];
@@ -42,9 +43,11 @@ interface ProductMenuProps {
 }
 
 const variantLabel = (variant: ProductVariant): string =>
-  variant.variantSku ||
-  String(Object.values(variant.matrixOptions || {}).join(" / ")) ||
-  variant.id.slice(0, 8);
+  variantOptionsName(variant) || variant.variantSku || variant.id.slice(0, 8);
+
+/** What one of this variant costs before options: the menu price plus its extra. */
+const variantPrice = (product: Product | null, variant: ProductVariant): number =>
+  Number(product?.basePrice || 0) + Number(variant.priceModifier || 0);
 
 const productCardImage = (
   product: Product,
@@ -424,7 +427,10 @@ export function ProductMenu({
                           : "border-slate-700 bg-slate-900",
                       ].join(" ")}
                     >
-                      {variantLabel(variant)}
+                      <span className="block font-medium">{variantLabel(variant)}</span>
+                      <span className="mt-0.5 block tabular-nums text-blue-400">
+                        {formatPosMoney(variantPrice(selectedProduct, variant))}
+                      </span>
                     </button>
                   );
                 })}

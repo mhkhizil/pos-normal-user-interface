@@ -104,6 +104,7 @@ import {
   remainingReceivable,
 } from "@/lib/pos/splitPayments";
 import { cashierLabel } from "@/lib/printing/cashier";
+import { variantOptionsName, withVariant } from "@/lib/pos/orderListDisplay";
 
 const BOARD_PAGE_SIZE = 15;
 const TABLE_STATUS_POLL_MS = 60_000;
@@ -751,7 +752,13 @@ export function CashierPage() {
           : withoutTax && line.taxInclusive && quantity > 0
             ? toMoney(Number(line.unitPrice || 0) - Number(line.taxAmount || 0) / quantity)
             : line.unitPrice?.trim();
-        const name = line.productName || product?.name || line.variantName || "Item";
+        const name = withVariant(
+          line.productName || product?.name || line.variantName || "Item",
+          variantOptionsName({
+            variantName: line.variantName,
+            matrixOptions: variant?.matrixOptions,
+          })
+        );
         const note = notePrices && !givenAway
           ? linePriceNote(line.unitPrice, menuPriceFor(line))
           : undefined;

@@ -334,9 +334,8 @@ describe("OrderPanel", () => {
       />
     );
 
-    const coffee = row("Coffee");
+    const coffee = row("Coffee (Large)");
     expect(coffee).toHaveTextContent("@ 10.00");
-    expect(coffee).toHaveTextContent("Large");
     expect(coffee).toHaveTextContent("20.00");
     expect(within(coffee).getByLabelText("cashier.orderPanel.lineQuantity")).toHaveTextContent("2");
     for (const action of ["decreaseQuantity", "increaseQuantity", "editItem", "removeItem"]) {
@@ -692,7 +691,7 @@ describe("OrderPanel", () => {
     expect(screen.getByText("Fish Ball Stick")).toBeInTheDocument();
   });
 
-  it("shows the line's variant under the product name", () => {
+  it("names the line with its variant", () => {
     render(
       <OrderPanel
         {...defaultProps}
@@ -707,8 +706,8 @@ describe("OrderPanel", () => {
       />
     );
 
-    expect(screen.getByText("Coffee")).toBeInTheDocument();
-    expect(row("Coffee")).toHaveTextContent("Large");
+    expect(screen.getByText("Coffee (Large)")).toBeInTheDocument();
+    expect(row("Coffee (Large)")).toBeInTheDocument();
   });
 
   it("shows money with two decimals", () => {

@@ -10,6 +10,7 @@ import type {
 import { RoomKind } from "@/core/presentation/hooks/useRoomPos";
 import { useRoomText } from "@/core/presentation/hooks/useRoomText";
 import { findActiveSpaSession } from "@/lib/spa/session";
+import { lineDisplayName } from "@/lib/pos/orderListDisplay";
 
 export type RoomFloorMode = "move" | "split" | "merge";
 
@@ -77,7 +78,7 @@ export function RoomFloorDialog({
     .filter((line) => line.quantity > 0);
 
   const nameOf = (line: SalesOrderLine) =>
-    line.productName || itemNames[line.variantId] || tr("item");
+    lineDisplayName(line) || itemNames[line.variantId] || tr("item");
   const setQuantity = (line: SalesOrderLine, quantity: number) =>
     setPicked((current) => ({
       ...current,

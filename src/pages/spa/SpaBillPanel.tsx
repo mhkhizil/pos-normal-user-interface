@@ -14,6 +14,7 @@ import { estimateCardCharge } from "@/lib/spa/payment";
 import { BillLineGroup, groupBillLines, isGivenFree } from "@/lib/spa/billLines";
 import { linePriceNote } from "@/lib/pos/linePrice";
 import { bookedSessions } from "@/lib/spa/session";
+import { lineDisplayName } from "@/lib/pos/orderListDisplay";
 import {
   focPending,
   PendingItem,
@@ -305,7 +306,7 @@ export function SpaBillPanel({
             const lineName =
               isTreatment && !isPackage
                 ? tr("treatmentCharge")
-                : line.productName || itemNames[line.variantId] || tr("item");
+                : lineDisplayName(line) || itemNames[line.variantId] || tr("item");
             // Time a promotion gave free is the promotion's; changing it would charge it.
             const canEdit = Boolean(onEditLine) && !billClosed && !(isRoomTime && promotedLine);
             // What one of the row is charged: a copy a promotion gave away, or one

@@ -43,6 +43,37 @@ const soupLarge = new ProductVariant({
 });
 
 describe("ProductMenu", () => {
+  it("names each variant by its options and shows what it costs", async () => {
+    const small = new ProductVariant({
+      id: "beer-s",
+      productId: "product-2",
+      variantSku: "BEER-S",
+      matrixOptions: { size: "Small" },
+    });
+    const large = new ProductVariant({
+      id: "beer-l",
+      productId: "product-2",
+      variantSku: "BEER-L",
+      matrixOptions: { size: "Large" },
+      priceModifier: "2.5000",
+    });
+    render(
+      <ProductMenu
+        products={[soup]}
+        variantsByProductId={{ "product-2": [small, large] }}
+        onLoadVariants={vi.fn().mockResolvedValue([small, large])}
+        onAdd={vi.fn()}
+        onClose={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Deli Soup/ }));
+    await screen.findByRole("dialog");
+    expect(screen.getByRole("button", { name: "Small 8.00" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Large 10.50" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /BEER-L/ })).not.toBeInTheDocument();
+  });
+
   it("adds a single-variant product to the order on one click", async () => {
     const onAdd = vi.fn().mockResolvedValue(undefined);
     const onLoadVariants = vi.fn().mockResolvedValue([coffeeVariant]);
@@ -107,7 +138,7 @@ describe("ProductMenu", () => {
     expect(screen.getByText("cashier.productMenu.chooseVariant")).toBeInTheDocument();
     expect(onAdd).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: "SOUP-L" }));
+    fireEvent.click(screen.getByRole("button", { name: /SOUP-L/ }));
     const decrease = screen.getByRole("button", {
       name: "cashier.orderPanel.decreaseQuantity",
     });
@@ -207,10 +238,10 @@ describe("ProductMenu", () => {
     expect(
       screen.getByRole("heading", { name: "Deli Soup" })
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "SOUP-L" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /SOUP-L/ })).toBeInTheDocument();
     expect(onAdd).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: "SOUP-L" }));
+    fireEvent.click(screen.getByRole("button", { name: /SOUP-L/ }));
     fireEvent.click(
       screen.getByRole("button", { name: "cashier.productMenu.add" })
     );

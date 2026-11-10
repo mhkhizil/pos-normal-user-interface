@@ -6,6 +6,8 @@ import {
   salesOrderServiceTypeKey,
   salesOrderStatusKey,
   variantDisplayName,
+  withVariant,
+  variantOptionsName,
 } from "../orderListDisplay";
 
 describe("orderListDisplay", () => {
@@ -51,5 +53,27 @@ describe("orderListDisplay", () => {
     expect(variantDisplayName({ variantSku: "COFFEE-LARGE" })).toBe("COFFEE-LARGE");
     expect(variantDisplayName({ sku: "LEO-01" })).toBe("LEO-01");
     expect(variantDisplayName({})).toBe("");
+  });
+});
+
+describe("variants in item names", () => {
+  it("names a line with the variant it was sold as", () => {
+    expect(lineDisplayName({ productName: "Beer", variantName: "Large" })).toBe("Beer (Large)");
+  });
+
+  it("leaves an item with no variant as just its name", () => {
+    expect(lineDisplayName({ productName: "Fried rice" })).toBe("Fried rice");
+    expect(lineDisplayName({ productName: "Tea", variantName: "Tea" })).toBe("Tea");
+  });
+
+  it("does not name the variant twice", () => {
+    expect(withVariant("Beer (Large)", "Large")).toBe("Beer (Large)");
+  });
+
+  it("reads a catalogue variant by its options, never its SKU", () => {
+    expect(variantOptionsName({ matrixOptions: { size: "Large", colour: "Black" } })).toBe(
+      "Large / Black"
+    );
+    expect(variantOptionsName({ matrixOptions: {} })).toBe("");
   });
 });

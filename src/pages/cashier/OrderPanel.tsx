@@ -40,6 +40,8 @@ import {
   formatPosMoney,
   lineDisplayName,
   variantDisplayName,
+  variantOptionsName,
+  withVariant,
 } from "@/lib/pos/orderListDisplay";
 
 export type GroupedSalesOrderLine = SalesOrderLine & {
@@ -307,7 +309,9 @@ export function OrderPanel({
     // only a fallback for lines built in this session, which carry no name yet.
     return (
       lineDisplayName(line) ||
-      product?.name ||
+      (product?.name
+        ? withVariant(product.name, variantOptionsName(variant ?? {}))
+        : "") ||
       variant?.variantSku ||
       line.variantId.slice(0, 8)
     );
@@ -658,7 +662,7 @@ export function OrderPanel({
                       <>
                     <p
                       className="mt-0.5 truncate text-xs tabular-nums text-slate-500"
-                      title={[lineVariant !== lineName ? lineVariant : "", lineOptions].filter(Boolean).join(" · ")}
+                      title={[lineVariant && !lineName.includes(lineVariant) ? lineVariant : "", lineOptions].filter(Boolean).join(" · ")}
                     >
                       {"@ "}
                       {formatPosMoney(line.unitPrice)}
@@ -672,7 +676,7 @@ export function OrderPanel({
                           {formatPosMoney(listPrice)}
                         </span>
                       ) : null}
-                      {lineVariant && lineVariant !== lineName ? ` · ${lineVariant}` : ""}
+                      {lineVariant && !lineName.includes(lineVariant) ? ` · ${lineVariant}` : ""}
                       {lineOptions ? ` · ${lineOptions}` : ""}
                       {hostess?.gave ? ` · ${hostess.name}` : ""}
                     </p>

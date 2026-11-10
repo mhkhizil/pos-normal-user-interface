@@ -87,7 +87,6 @@ describe("MultiOrderingView", () => {
     expect(onOpenOrder).toHaveBeenCalledWith("order-1");
 
     // Each line reads as its item, with the variant under it.
-    expect(screen.getByText("Fish Ball Stick")).toBeInTheDocument();
-    expect(screen.getByText("Large")).toBeInTheDocument();
+    expect(screen.getByText("Fish Ball Stick (Large)")).toBeInTheDocument();
   });
 });

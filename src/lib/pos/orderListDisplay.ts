@@ -59,12 +59,37 @@ export function isHumanDisplayName(value: unknown): value is string {
   return text.length > 0 && !UUID_LIKE.test(text);
 }
 
+/**
+ * The options a variant was sold as ("Large", "Large / Black"), never its SKU: a
+ * product with only its default variant has none, and reads as just its name.
+ */
+export function variantOptionsName(variant: {
+  variantName?: string | null;
+  matrixOptions?: Record<string, unknown> | null;
+}): string {
+  if (isHumanDisplayName(variant.variantName)) return variant.variantName.trim();
+  return Object.values(variant.matrixOptions || {})
+    .map((value) => String(value ?? "").trim())
+    .filter(Boolean)
+    .join(" / ");
+}
+
+/** An item named with its variant, "Beer (Large)"; unchanged when there is none. */
+export function withVariant(name: string, variant?: string | null): string {
+  const label = String(variant ?? "").trim();
+  const base = name.trim();
+  if (!label || label === base || base.endsWith(`(${label})`)) return name;
+  return `${base} (${label})`;
+}
+
 export function lineDisplayName(line: {
   productName?: string;
   variantName?: string;
   sku?: string;
 }): string {
-  if (isHumanDisplayName(line.productName)) return line.productName.trim();
+  if (isHumanDisplayName(line.productName)) {
+    return withVariant(line.productName.trim(), variantOptionsName(line));
+  }
   if (isHumanDisplayName(line.variantName)) return line.variantName.trim();
   if (isHumanDisplayName(line.sku)) return line.sku.trim();
   return "";
