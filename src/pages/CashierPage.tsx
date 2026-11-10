@@ -1011,8 +1011,7 @@ export function CashierPage() {
   const receiptSubtotal = billOptions.bill?.subtotal ?? (billOptions.changed
     ? toMoney(paymentBillLines.reduce((sum, line) => sum + Number(line.quantity) * Number(line.unitPrice)
       - (!billOptions.includeTax && line.taxInclusive ? Number(line.taxAmount || 0) : 0), 0))
-    : toMoney(lineSubtotal - paymentBillLines.reduce(
-      (sum, line) => sum + (line.taxInclusive ? 0 : Number(line.taxAmount || 0)), 0)));
+    : lineSubtotal.toFixed(4));
   const receiptDiscount = billOptions.bill?.totalDiscount ?? (billOptions.changed
     ? toMoney(paymentBillLines.reduce((sum, line) => sum + Number(line.lineDiscount || 0), 0)
       + (isDirectCheckoutMode ? 0 : Math.max(0, Number(discountAmount) || 0)))
