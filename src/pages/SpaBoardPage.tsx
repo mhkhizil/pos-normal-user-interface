@@ -1789,7 +1789,10 @@ export function SpaBoardPage({ kind = "spa" }: { kind?: RoomKind }) {
         {
           variantId: variant.id,
           productId: product.id,
-          name: withVariant(product.name, variantOptionsName(variant)),
+          name:
+            variants.length > 1
+              ? withVariant(product.name, variantOptionsName(variant))
+              : product.name,
           unitPrice,
           ...extras,
         },

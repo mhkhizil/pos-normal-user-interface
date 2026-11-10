@@ -193,10 +193,10 @@ export function EditOrderDialog({
       setVariantChoice({ product, variants });
       return;
     }
-    if (variants[0]) addVariant(product, variants[0]);
+    if (variants[0]) addVariant(product, variants[0], false);
   };
 
-  const addVariant = (product: Product, variant: ProductVariant) => {
+  const addVariant = (product: Product, variant: ProductVariant, named = true) => {
     setVariantChoice(null);
     const price = variantPrice(product, variant);
     setState((current) =>
@@ -208,7 +208,7 @@ export function EditOrderDialog({
               {
                 key: `new-${Date.now()}-${variant.id}`,
                 variantId: variant.id,
-                name: withVariant(product.name, variantOptionsName(variant)),
+                name: named ? withVariant(product.name, variantOptionsName(variant)) : product.name,
                 quantity: 1,
                 unitPrice: String(price),
                 removed: false,

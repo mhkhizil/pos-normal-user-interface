@@ -310,7 +310,9 @@ export function OrderPanel({
     return (
       lineDisplayName(line) ||
       (product?.name
-        ? withVariant(product.name, variantOptionsName(variant ?? {}))
+        ? variants.filter((item) => item.productId === product.id).length > 1
+          ? withVariant(product.name, variantOptionsName(variant ?? {}))
+          : product.name
         : "") ||
       variant?.variantSku ||
       line.variantId.slice(0, 8)
