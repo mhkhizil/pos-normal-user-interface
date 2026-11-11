@@ -33,6 +33,8 @@ export interface ReprintInput {
   /** How a room slip writes its start and end, as the room board does. */
   formatDateTime: (iso: string) => string;
   text: SlipText;
+  /** False where Venue setup hides the tax line; the tax was still charged. */
+  showTax?: boolean;
 }
 
 const money = (value: number) => value.toFixed(4);
@@ -213,7 +215,7 @@ export function reprintSlip(input: ReprintInput): SaleReceipt {
     lines: merged(printable),
     subtotal: money(subtotal),
     discount: discount > 0 ? money(discount) : undefined,
-    tax: amount(order.totalTax) > 0 ? order.totalTax : undefined,
+    tax: input.showTax !== false && amount(order.totalTax) > 0 ? order.totalTax : undefined,
     serviceCharge: amount(order.serviceCharge) > 0 ? order.serviceCharge : undefined,
     ...(tipRow ? { amounts: tipRow } : {}),
     payments,

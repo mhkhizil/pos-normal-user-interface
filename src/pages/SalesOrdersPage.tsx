@@ -23,6 +23,7 @@ import {
 import { cashierLabel } from "@/lib/printing/cashier";
 import { reprintSlip } from "@/lib/printing/reprintSlip";
 import { EditOrderDialog } from "./salesOrders/EditOrderDialog";
+import { useVenueSetting } from "@/core/presentation/hooks/useVenueSetting";
 
 type StatusTab = "open" | "completed" | "voided";
 type ServiceFilter = "ALL" | "DINE_IN" | "TAKE_AWAY" | "DELIVERY" | "PICK_UP";
@@ -87,6 +88,7 @@ function EmptyIllustration() {
 }
 
 export function SalesOrdersPage() {
+  const venue = useVenueSetting();
   const { t } = useTranslation();
   const { formatDateTime } = useDateFormatter();
   const { formatCurrency } = useNumberFormatter();
@@ -265,6 +267,14 @@ export function SalesOrdersPage() {
           hostessName,
           isFeeLine,
           formatDateTime,
+          showTax:
+            venue.taxShown?.[
+              selectedOrder.place?.kind === "KTV"
+                ? "KTV"
+                : selectedOrder.place?.kind === "SPA"
+                  ? "SPA"
+                  : "BAR"
+            ] !== false,
           text: {
             item: isRoom ? tr("item") : t("salesOrders.item"),
             aHostess: isRoom ? tr("aHostess") : t("cashier.orderPanel.aHostess"),

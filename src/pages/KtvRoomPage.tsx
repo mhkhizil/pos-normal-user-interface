@@ -29,12 +29,14 @@ import { lineDisplayName } from "@/lib/pos/orderListDisplay";
 import { toast } from "@/lib/toast";
 import { cashierLabel } from "@/lib/printing/cashier";
 import { receiptTotals } from "@/lib/printing/receiptTotals";
+import { useVenueSetting } from "@/core/presentation/hooks/useVenueSetting";
 import { toMoney, withOrderTipOnFirstPayment } from "@/lib/pos/checkoutAdjustments";
 import { slipRows } from "@/lib/spa/billLines";
 import { ladyChargeDetail, splitLadyCharges } from "@/lib/ktv/ladyCharge";
 
 export function KtvRoomPage() {
   const { t } = useTranslation();
+  const showTax = useVenueSetting().taxShown?.KTV !== false;
   const navigate = useNavigate();
   const { roomId = "" } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -340,7 +342,7 @@ export function KtvRoomPage() {
         includeTax: true,
         includeServiceCharge: true,
       }).catch(() => null);
-      const totals = receiptTotals(bill, result.lines);
+      const totals = receiptTotals(bill, result.lines, showTax);
       const context = await requireCashierContext();
       const finalTotal = Number(finalQuote.runningTotal || total) + tipValue;
       await processCheckout({

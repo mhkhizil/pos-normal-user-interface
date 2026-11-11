@@ -331,6 +331,8 @@ export function SpaBoardPage({ kind = "spa" }: { kind?: RoomKind }) {
   const atEnd = quote?.paymentTiming === "PAY_AT_END";
   // Venue setup can turn food and drinks off for SPA or KTV; the server refuses them then.
   const menuAllowed = isSpa ? venue.spaMenuOrdering : venue.ktvMenuOrdering;
+  // Venue setup can hide the tax line for SPA or KTV; the tax is still charged.
+  const showTax = venue.taxShown?.[isSpa ? "SPA" : "KTV"] !== false;
   const openSessions = useMemo(
     () => (room?.sessions || []).filter(isOpenSpaSession),
     [room?.sessions]
@@ -481,8 +483,8 @@ export function SpaBoardPage({ kind = "spa" }: { kind?: RoomKind }) {
         // The server's total discount holds the items' own (FOC, item discounts) too.
         billDiscount: Number(billDiscount) || 0,
         serviceCharge: serverBill ? Number(serverBill.serviceCharge) : 0,
-        tax: serverBill ? Number(serverBill.addedTax) + Number(serverBill.serviceChargeTax) : 0,
-        includedTax: serverBill
+        tax: serverBill && showTax ? Number(serverBill.addedTax) + Number(serverBill.serviceChargeTax) : 0,
+        includedTax: serverBill && showTax
           ? Number(serverBill.totalTax) - Number(serverBill.addedTax) - Number(serverBill.serviceChargeTax)
           : 0,
         tip: tipValue,
@@ -1701,7 +1703,7 @@ export function SpaBoardPage({ kind = "spa" }: { kind?: RoomKind }) {
         // The bill as the till has it now (the room's time lands on it at close),
         // so the slip's money rows add up to the total it prints.
         const bill = session.salesOrderId ? await readBill(session.salesOrderId) : serverBill;
-        const totals = receiptTotals(bill, printedLines);
+        const totals = receiptTotals(bill, printedLines, showTax);
         await printer.printReceipt({
           title: "RECEIPT",
           sale: true,
@@ -2032,7 +2034,7 @@ export function SpaBoardPage({ kind = "spa" }: { kind?: RoomKind }) {
       const printedLines = orderLines.filter((line) => !line.voidedAt);
       const ladySplit = ladyChargesOf(printedLines);
       const bill = session.salesOrderId ? await readBill(session.salesOrderId) : serverBill;
-      const totals = receiptTotals(bill, printedLines);
+      const totals = receiptTotals(bill, printedLines, showTax);
       // Clock time the close has not written to the bill yet is still owed, so the
       // check bill counts it in the items and in the receivable.
       const items = bill
@@ -2084,7 +2086,7 @@ export function SpaBoardPage({ kind = "spa" }: { kind?: RoomKind }) {
       const ladySplit = ladyChargesOf(printedLines);
       // The bill as it stands after the settle, as the cashier prints it.
       const bill = session.salesOrderId ? await readBill(session.salesOrderId) : serverBill;
-      const totals = receiptTotals(bill, printedLines);
+      const totals = receiptTotals(bill, printedLines, showTax);
       await printer.printReceipt({
         title: "RECEIPT",
         sale: true,

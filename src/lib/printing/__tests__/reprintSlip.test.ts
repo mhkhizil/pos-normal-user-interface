@@ -51,8 +51,9 @@ const order = (over: Partial<SalesOrder> = {}) =>
     ...over,
   });
 
-const build = (o: SalesOrder, lines: SalesOrderLine[]) =>
+const build = (o: SalesOrder, lines: SalesOrderLine[], showTax?: boolean) =>
   reprintSlip({
+    showTax,
     order: o,
     lines,
     outletName: "Yankin",
@@ -99,6 +100,12 @@ describe("reprintSlip", () => {
     expect(slip.lines[0]).toMatchObject({ promotion: "1+1", promotionAmount: "3000.0000" });
     // Who ordered prints as her name alone, with no "Ordered by" wording.
     expect(slip.lines[2].modifiers).toBe("Mya");
+  });
+
+  it("prints no tax line where the shop hides it, with the same total", () => {
+    const slip = build(order(), [line("cola")], false);
+    expect(slip.tax).toBeUndefined();
+    expect(slip.total).toBe(build(order(), [line("cola")]).total);
   });
 
   it("notes a price changed on this bill, and prints a free copy at 0", () => {

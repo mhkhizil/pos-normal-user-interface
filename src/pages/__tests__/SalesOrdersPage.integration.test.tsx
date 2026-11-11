@@ -54,6 +54,10 @@ vi.mock("react-i18next", () => ({
   }),
 }));
 
+vi.mock("@/core/presentation/hooks/useVenueSetting", () => ({
+  useVenueSetting: () => ({ taxShown: { BAR: true, SPA: true, KTV: true } }),
+}));
+
 vi.mock("../salesOrders/EditOrderDialog", () => ({
   EditOrderDialog: () => null,
 }));

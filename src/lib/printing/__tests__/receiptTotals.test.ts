@@ -46,6 +46,13 @@ describe("receiptTotals", () => {
     ).toEqual({ subtotal: "115000.0000" });
   });
 
+  it("leaves out the tax line where the shop hides it, keeping the other rows", () => {
+    expect(receiptTotals(bill(), [line()], false)).toEqual({
+      subtotal: "115000.0000",
+      serviceCharge: "11500.0000",
+    });
+  });
+
   it("takes the copies a promotion gave away out of the items and the discount", () => {
     const free = line({
       id: "line-2",

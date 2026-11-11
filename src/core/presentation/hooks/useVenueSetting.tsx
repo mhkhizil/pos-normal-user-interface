@@ -18,6 +18,8 @@ const PAY_WHEN_ORDERING: VenueSetting = {
   serviceChargeBps: 0,
   serviceChargeOn: { BAR: true, SPA: true, KTV: true },
   serviceChargeTaxRate: 0,
+  taxOn: { BAR: true, SPA: true, KTV: true },
+  taxShown: { BAR: true, SPA: true, KTV: true },
 };
 
 /**

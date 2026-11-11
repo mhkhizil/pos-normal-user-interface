@@ -28,6 +28,10 @@ export interface VenueSetting {
   serviceChargeOn: { BAR: boolean; SPA: boolean; KTV: boolean };
   /** The default taxes charged on the service charge, added up as a fraction. */
   serviceChargeTaxRate: number;
+  /** Which areas charge tax; an area switched off charges none. */
+  taxOn: { BAR: boolean; SPA: boolean; KTV: boolean };
+  /** Which areas show the tax line on screen and on slips; tax is still charged. */
+  taxShown: { BAR: boolean; SPA: boolean; KTV: boolean };
 }
 
 type RecordValue = Record<string, unknown>;
@@ -135,6 +139,16 @@ export class ApiVenueSettingRepository {
       serviceChargeTaxRate: rates
         .filter((rate) => rate.appliesToServiceCharge === true)
         .reduce((sum, rate) => sum + Number(rate.ratePercentage), 0),
+      taxOn: {
+        BAR: data.taxOnBar !== false,
+        SPA: data.taxOnSpa !== false,
+        KTV: data.taxOnKtv !== false,
+      },
+      taxShown: {
+        BAR: data.taxShownBar !== false,
+        SPA: data.taxShownSpa !== false,
+        KTV: data.taxShownKtv !== false,
+      },
     };
   }
 }
