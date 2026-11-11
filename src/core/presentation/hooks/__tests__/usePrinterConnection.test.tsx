@@ -361,6 +361,111 @@ describe("usePrinterConnection station routing", () => {
       ["Beverage KDS", ["Beer"]],
     ]);
   });
+
+  /** A back-office printer record, as GET /kitchen-printers lists one. */
+  const record = (id: string, ipAddress: string, isActive = true) => ({
+    id,
+    name: id,
+    ipAddress,
+    port: 9100,
+    sectors: ["KDS"],
+    printsFor: [],
+    isActive,
+  });
+
+  const printedOn = () =>
+    mocks.printKitchen.mock.calls.map(([binding, slip]) => [
+      binding.displayName,
+      slip.lines.map((line: { name: string }) => line.name),
+    ]);
+
+  // A KTV order's tickets go to the VIP Lounge's stations, whose printer records
+  // are not the Waiter Tablet copies of the same printers the tablet saved.
+  it("prints a station's ticket on the saved printer at the same address", async () => {
+    bind("Kitchen", "wt-kitchen", "192.168.201.100");
+    bind("Bar", "wt-bar", "192.168.201.92");
+    mocks.listPrinters.mockResolvedValue({
+      printers: [
+        record("vip-kitchen", "192.168.201.100"),
+        record("vip-bar", "192.168.201.92"),
+      ],
+    });
+    const { result } = renderConnection();
+    await waitFor(() => expect(result.current.isConnected).toBe(true));
+
+    await act(async () => {
+      await result.current.printKitchen(
+        { title: "Kitchen", stationId: "vip-kitchen-st", lines: [{ name: "Rice", quantity: "1" }] },
+        [{ id: "vip-kitchen-st", name: "KitchenStation", printerIds: ["vip-kitchen"], categoryIds: [] }]
+      );
+      await result.current.printKitchen(
+        { title: "Bar", stationId: "vip-bar-st", lines: [{ name: "Beer", quantity: "1" }] },
+        [{ id: "vip-bar-st", name: "BarStation", printerIds: ["vip-bar"], categoryIds: [] }]
+      );
+    });
+
+    expect(printedOn()).toEqual([
+      ["Kitchen", ["Rice"]],
+      ["Bar", ["Beer"]],
+    ]);
+  });
+
+  it("prints once on a printer a station names under two records", async () => {
+    bind("Kitchen", "wt-kitchen", "192.168.201.100");
+    mocks.listPrinters.mockResolvedValue({
+      printers: [record("vip-kitchen", "192.168.201.100"), record("ai-kitchen", "192.168.201.100")],
+    });
+    const { result } = renderConnection();
+    await waitFor(() => expect(result.current.isConnected).toBe(true));
+
+    await act(async () => {
+      await result.current.printKitchen(
+        { title: "Kitchen", stationId: "st", lines: [{ name: "Rice", quantity: "1" }] },
+        [{ id: "st", name: "KitchenStation", printerIds: ["vip-kitchen", "ai-kitchen"], categoryIds: [] }]
+      );
+    });
+
+    expect(printedOn()).toEqual([["Kitchen", ["Rice"]]]);
+  });
+
+  it("prints at the back office's address for a station printer the device never saved", async () => {
+    bind("Bar", "wt-bar", "192.168.201.92");
+    mocks.listPrinters.mockResolvedValue({
+      printers: [record("vip-kitchen", "192.168.201.100")],
+    });
+    const { result } = renderConnection();
+    await waitFor(() => expect(result.current.isConnected).toBe(true));
+
+    await act(async () => {
+      await result.current.printKitchen(
+        { title: "Kitchen", stationId: "st", lines: [{ name: "Rice", quantity: "1" }] },
+        [{ id: "st", name: "KitchenStation", printerIds: ["vip-kitchen"], categoryIds: [] }]
+      );
+    });
+
+    expect(mocks.printKitchen).toHaveBeenCalledTimes(1);
+    const [binding] = mocks.printKitchen.mock.calls[0];
+    expect(binding).toMatchObject({ host: "192.168.201.100", port: 9100, transport: "NETWORK" });
+  });
+
+  it("prints a ticket no station printer can take on one printer, not on every one", async () => {
+    bind("Kitchen", "wt-kitchen", "192.168.201.100");
+    bind("Bar", "wt-bar", "192.168.201.92");
+    mocks.listPrinters.mockResolvedValue({
+      printers: [record("vip-kitchen", "192.168.201.123", false)],
+    });
+    const { result } = renderConnection();
+    await waitFor(() => expect(result.current.isConnected).toBe(true));
+
+    await act(async () => {
+      await result.current.printKitchen(
+        { title: "Kitchen", stationId: "st", lines: [{ name: "Rice", quantity: "1" }] },
+        [{ id: "st", name: "KitchenStation", printerIds: ["vip-kitchen"], categoryIds: [] }]
+      );
+    });
+
+    expect(mocks.printKitchen).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("usePrinterConnection paid bill copies", () => {

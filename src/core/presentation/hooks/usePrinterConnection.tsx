@@ -32,6 +32,10 @@ import {
   StationRoute,
 } from "@/lib/printing/routeKitchenPrint";
 import { printLogoFor } from "@/lib/printing/printLogo";
+import {
+  unboundStationPrinterIds,
+  withStationPrinters,
+} from "@/lib/printing/stationPrinterBindings";
 import { checkoutCopies, copySlip } from "@/lib/printing/receiptCopies";
 import { printPlaceToTemplateType, pickSavedPrintTemplate } from "@/lib/printing/selectPrintTemplate";
 import {
@@ -427,6 +431,25 @@ export function usePrinterConnection(
     }
   }, [locationId]);
 
+  /**
+   * The device's printers, plus any station printer it never saved, reached by
+   * address. A KTV ticket goes to the KTV room location's stations, whose printer
+   * records are not the ones a waiter tablet at another location saved.
+   */
+  const withStationPrintersFor = useCallback(
+    async (bindings: PrinterBinding[], routes: StationRoute[]) => {
+      const missing = unboundStationPrinterIds(routes, bindings);
+      if (!missing.length) return bindings;
+      try {
+        const { printers } = await printerService.list({ page: 1, limit: 100 });
+        return withStationPrinters(bindings, printers, missing);
+      } catch {
+        return bindings;
+      }
+    },
+    [printerService]
+  );
+
   const printKitchen = useCallback(
     async (
       slip: KitchenSlip,
@@ -443,7 +466,7 @@ export function usePrinterConnection(
       const paperWidth = slip.paperWidth || resolved?.paperWidth;
       const plan = groupKitchenJobs(
         slip.lines || [],
-        current.bindings,
+        await withStationPrintersFor(current.bindings, routes),
         current.defaultBinding,
         slip.stationId,
         routes,
@@ -472,7 +495,12 @@ export function usePrinterConnection(
         const targets = localTargets.length
           ? localTargets
           : await backendTargets("KDS");
-        jobs = targets.map((binding) => ({ binding, lines }));
+        // With stations set up, a ticket that reached none of them prints once,
+        // not on every kitchen printer (which put a room's rice and beer on both).
+        jobs = (routes.length ? targets.slice(0, 1) : targets).map((binding) => ({
+          binding,
+          lines,
+        }));
       }
 
       const failures: string[] = [];
@@ -497,7 +525,16 @@ export function usePrinterConnection(
       }
       return plan;
     },
-    [backendTargets, bindingsWithSectors, currentBindings, registerId, stationsFor, templateFor, tenantId]
+    [
+      backendTargets,
+      bindingsWithSectors,
+      currentBindings,
+      registerId,
+      stationsFor,
+      templateFor,
+      tenantId,
+      withStationPrintersFor,
+    ]
   );
 
   const printReceipt = useCallback(

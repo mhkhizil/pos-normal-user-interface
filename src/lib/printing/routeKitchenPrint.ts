@@ -158,8 +158,12 @@ export function groupKitchenJobs(
           ],
         };
       }
+      const printers = stationBindings.filter(
+        (binding, index) =>
+          stationBindings.findIndex((other) => other.id === binding.id) === index
+      );
       return {
-        jobs: stationBindings.map((binding) => ({ binding, lines, station })),
+        jobs: printers.map((binding) => ({ binding, lines, station })),
         unrouted: [],
         missingPrinterRoutes: missingPrinterIds.length
           ? [
