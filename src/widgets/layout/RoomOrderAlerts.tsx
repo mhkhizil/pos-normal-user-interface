@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
+import { kitchenPlanMessage } from "@/lib/printing/kitchenPrintMessage";
 import { Button } from "@/components/ui/Button";
 import { RoomOrderView } from "@/core/domain/entities/RoomTablet";
 import { useRoomOrderAlerts } from "@/core/presentation/hooks/useRoomOrderAlerts";
@@ -63,30 +64,8 @@ export function RoomOrderAlerts({
             const plan = await printKitchen(toTabletSlip(claim.order));
             // An item whose category no station carries, or a station whose printer
             // this device does not have, would leave the kitchen without the order.
-            if (plan.unrouted.length && plan.missingPrinterRoutes.length) {
-              setError(
-                t("kds.noPrinter", {
-                  items: plan.unrouted.map((item) => item.name).join(", "),
-                  stations: plan.missingPrinterRoutes
-                    .map((route) => route.stationName)
-                    .join(", "),
-                })
-              );
-            } else if (plan.unrouted.length) {
-              setError(
-                t("roomOrders.unrouted", {
-                  items: plan.unrouted.map((item) => item.name).join(", "),
-                })
-              );
-            } else if (plan.missingPrinterRoutes.length) {
-              setError(
-                t("roomOrders.stationPrinterMissing", {
-                  stations: plan.missingPrinterRoutes
-                    .map((route) => route.stationName)
-                    .join(", "),
-                })
-              );
-            }
+            const problem = kitchenPlanMessage(plan, t);
+            if (problem) setError(problem);
           } catch (caught) {
             setError(caught instanceof Error ? caught.message : t("roomOrders.printFailed"));
           }

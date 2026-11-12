@@ -6,6 +6,7 @@ import {
   useState,
 } from "react";
 import { useTranslation } from "react-i18next";
+import { kitchenPlanMessage } from "@/lib/printing/kitchenPrintMessage";
 import { useSearchParams } from "react-router-dom";
 import {
   OrderStatus,
@@ -2661,24 +2662,7 @@ export function CashierPage() {
         })),
         { requireStationRouting: true }
       );
-      const problems: string[] = [];
-      if (printPlan.unrouted.length) {
-        problems.push(
-          t("cashier.errors.kdsUnrouted", {
-            items: printPlan.unrouted.map((item) => item.name).join(", "),
-          })
-        );
-      }
-      if (printPlan.missingPrinterRoutes.length) {
-        problems.push(
-          t("cashier.errors.kdsPrinterUnavailable", {
-            stations: printPlan.missingPrinterRoutes
-              .map((route) => route.stationName)
-              .join(", "),
-          })
-        );
-      }
-      return problems.length ? problems.join(" ") : null;
+      return kitchenPlanMessage(printPlan, t);
     } catch (error) {
       return error instanceof Error ? error.message : t("cashier.errors.kdsFailed");
     }
@@ -3156,26 +3140,7 @@ export function CashierPage() {
           })),
           { requireStationRouting: true }
         );
-        const printProblems: string[] = [];
-        if (printPlan.unrouted.length) {
-          printProblems.push(
-            t("cashier.errors.kdsUnrouted", {
-              items: printPlan.unrouted.map((line) => line.name).join(", "),
-            })
-          );
-        }
-        if (printPlan.missingPrinterRoutes.length) {
-          printProblems.push(
-            t("cashier.errors.kdsPrinterUnavailable", {
-              stations: printPlan.missingPrinterRoutes
-                .map((route) => route.stationName)
-                .join(", "),
-            })
-          );
-        }
-        if (printProblems.length) {
-          kitchenPrintError = printProblems.join(" ");
-        }
+        kitchenPrintError = kitchenPlanMessage(printPlan, t);
       } catch (printError) {
         kitchenPrintError =
           printError instanceof Error

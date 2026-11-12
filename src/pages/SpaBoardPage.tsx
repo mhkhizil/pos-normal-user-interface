@@ -1,6 +1,6 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { kitchenPrintMessage } from "@/lib/printing/kitchenPrintMessage";
+import { kitchenPlanMessage, kitchenPrintMessage } from "@/lib/printing/kitchenPrintMessage";
 import { useAuth } from "@/core/presentation/hooks/useAuth";
 import { useKdsDeleteSlipShopSetting } from "@/core/presentation/hooks/useKdsDeleteSlipShopSetting";
 import { useKdsStationManagement } from "@/core/presentation/hooks/useKdsStationManagement";
@@ -1287,19 +1287,7 @@ export function SpaBoardPage({ kind = "spa" }: { kind?: RoomKind }) {
         })),
         { requireStationRouting: true }
       );
-      // A line no station routes never reached the kitchen, so there is nothing
-      // to call back; a station with no printer bound here is worth saying.
-      const problems: string[] = [];
-      if (plan.missingPrinterRoutes.length) {
-        problems.push(
-          t("cashier.errors.kdsPrinterUnavailable", {
-            stations: plan.missingPrinterRoutes
-              .map((route) => route.stationName)
-              .join(", "),
-          })
-        );
-      }
-      return problems.length ? problems.join(" ") : null;
+      return kitchenPlanMessage(plan, t, { reportNoStation: false });
     } catch (error) {
       return error instanceof Error ? error.message : t("cashier.errors.kdsFailed");
     }

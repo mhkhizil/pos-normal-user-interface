@@ -1965,6 +1965,8 @@
     "sentBy": "Sent by {{name}}",
     "sentFromTablet": "Sent from {{device}}",
     "noPrinter": "Did not print: {{items}}. No printer is connected for {{stations}}. The order is saved. Check that printer, then print again.",
+    "noStation": "Did not print: {{items}}. These items have no kitchen station. Add their category to a station in Admin.",
+    "somePrinterMissing": "Printed, but a printer for {{stations}} is not connected. Check that printer.",
     "printFailed": "Sent to the kitchen, but the kitchen slip did not print: {{error}}",
     "roomTablet": "room tablet",
     "seat": "Seat {{seat}}",

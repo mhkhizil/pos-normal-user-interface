@@ -1,5 +1,5 @@
 import type { TFunction } from "i18next";
-import { NoKitchenPrinterError } from "./routeKitchenPrint";
+import { KitchenPrintPlan, NoKitchenPrinterError } from "./routeKitchenPrint";
 
 const unique = (values: string[]) => Array.from(new Set(values));
 
@@ -27,4 +27,28 @@ export function kitchenPrintMessage(errors: unknown[], t: TFunction): string | n
     );
   }
   return unique(messages).join(" ");
+}
+
+/**
+ * What staff are told about a kitchen print that left items or printers out.
+ * A delete slip passes `reportNoStation: false`: an item no station takes never
+ * reached the kitchen, so there is nothing to call back.
+ */
+export function kitchenPlanMessage(
+  plan: KitchenPrintPlan,
+  t: TFunction,
+  { reportNoStation = true }: { reportNoStation?: boolean } = {}
+): string | null {
+  const items = unique(plan.unrouted.map((line) => line.name)).join(", ");
+  const stations = unique(plan.missingPrinterRoutes.map((route) => route.stationName)).join(", ");
+  if (plan.unrouted.length && plan.missingPrinterRoutes.length) {
+    return t("kds.noPrinter", { items, stations });
+  }
+  if (plan.unrouted.length) {
+    return reportNoStation ? t("kds.noStation", { items }) : null;
+  }
+  if (plan.missingPrinterRoutes.length) {
+    return t("kds.somePrinterMissing", { stations });
+  }
+  return null;
 }
