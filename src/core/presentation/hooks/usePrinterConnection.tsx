@@ -28,6 +28,7 @@ import {
   groupKitchenJobs,
   KitchenPrintPlan,
   KitchenRoutingOptions,
+  NoKitchenPrinterError,
   PrinterJob,
   StationRoute,
 } from "@/lib/printing/routeKitchenPrint";
@@ -484,8 +485,15 @@ export function usePrinterConnection(
       // printer (for example "only salad" routed to the drink-station printer
       // would still receive every other category). In strict mode the plan is
       // returned untouched so the caller can surface the unrouted lines.
+      // A station with no printer this device can reach is reported to the caller,
+      // never printed on some other printer.
       let jobs: PrinterJob[] = plan.jobs;
-      if (!options.requireStationRouting && !jobs.length && lines.length) {
+      if (
+        !options.requireStationRouting &&
+        !plan.missingPrinterRoutes.length &&
+        !jobs.length &&
+        lines.length
+      ) {
         const kds = await bindingsWithSectors();
         const localTargets = resolveBindingsForPlace(
           kds.bindings,
@@ -495,8 +503,7 @@ export function usePrinterConnection(
         const targets = localTargets.length
           ? localTargets
           : await backendTargets("KDS");
-        // With stations set up, a ticket that reached none of them prints once,
-        // not on every kitchen printer (which put a room's rice and beer on both).
+        // With stations set up, an item none of them takes prints once.
         jobs = (routes.length ? targets.slice(0, 1) : targets).map((binding) => ({
           binding,
           lines,
@@ -664,7 +671,7 @@ export function usePrinterConnection(
           : undefined;
       // A KTV room is printed under the tenant's own name, loaded once per company.
       const company = await printCompanyFor(tenantId);
-      return printKitchen(
+      const plan = await printKitchen(
         {
           ...kdsTicketSlip(enriched, company?.name),
           stationId,
@@ -672,6 +679,13 @@ export function usePrinterConnection(
         },
         station ? [station] : []
       );
+      if (station && !plan.jobs.length && plan.unrouted.length) {
+        throw new NoKitchenPrinterError(
+          [station.name],
+          plan.unrouted.map((line) => line.name)
+        );
+      }
+      return plan;
     },
     [printKitchen, tenantId, ticketWithDetails]
   );

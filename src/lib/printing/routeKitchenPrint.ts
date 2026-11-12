@@ -24,6 +24,17 @@ export interface KitchenPrintPlan {
   }>;
 }
 
+/** A kitchen ticket whose station has no printer this device can reach. */
+export class NoKitchenPrinterError extends Error {
+  constructor(
+    readonly stations: string[],
+    readonly items: string[]
+  ) {
+    super(`No printer is connected for ${stations.join(", ")}`);
+    this.name = "NoKitchenPrinterError";
+  }
+}
+
 export interface KitchenRoutingOptions {
   requireStationRouting?: boolean;
 }

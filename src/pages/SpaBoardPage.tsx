@@ -1,5 +1,6 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { kitchenPrintMessage } from "@/lib/printing/kitchenPrintMessage";
 import { useAuth } from "@/core/presentation/hooks/useAuth";
 import { useKdsDeleteSlipShopSetting } from "@/core/presentation/hooks/useKdsDeleteSlipShopSetting";
 import { useKdsStationManagement } from "@/core/presentation/hooks/useKdsStationManagement";
@@ -1218,19 +1219,23 @@ export function SpaBoardPage({ kind = "spa" }: { kind?: RoomKind }) {
             .then((result) => result.lines || [])
             .catch(() => orderLines)
         : orderLines;
+      // One ticket that cannot print does not stop the others.
+      const problems: unknown[] = [];
       for (const ticket of fresh) {
-        await printer.printTicket(
-          applyKdsTicketHostess(ticket, lines, hostessName),
-          [],
-          lines
-        );
+        try {
+          await printer.printTicket(
+            applyKdsTicketHostess(ticket, lines, hostessName),
+            [],
+            lines
+          );
+        } catch (caught) {
+          problems.push(caught);
+        }
       }
+      const message = kitchenPrintMessage(problems, t);
+      if (message) setActionError(message);
     } catch (caught) {
-      setActionError(
-        t("kds.printFailed", {
-          error: caught instanceof Error ? caught.message : t("roomOrders.printFailed"),
-        })
-      );
+      setActionError(kitchenPrintMessage([caught], t));
     }
   };
 

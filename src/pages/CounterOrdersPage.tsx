@@ -1,5 +1,7 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { kitchenPrintMessage } from "@/lib/printing/kitchenPrintMessage";
+import { NoKitchenPrinterError } from "@/lib/printing/routeKitchenPrint";
 import { KdsTicket } from "@/core/domain/entities/Cashier";
 import type { KdsTicketStatus } from "@/core/application/dtos/CashierDTO";
 import { useAuth } from "@/core/presentation/hooks/useAuth";
@@ -163,7 +165,11 @@ export function CounterOrdersPage() {
       );
     } catch (caught) {
       setLocalError(
-        caught instanceof Error ? caught.message : t("counterOrders.ticketFailed")
+        caught instanceof NoKitchenPrinterError
+          ? kitchenPrintMessage([caught], t)
+          : caught instanceof Error
+            ? caught.message
+            : t("counterOrders.ticketFailed")
       );
     }
   };

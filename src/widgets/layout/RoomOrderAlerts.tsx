@@ -63,7 +63,16 @@ export function RoomOrderAlerts({
             const plan = await printKitchen(toTabletSlip(claim.order));
             // An item whose category no station carries, or a station whose printer
             // this device does not have, would leave the kitchen without the order.
-            if (plan.unrouted.length) {
+            if (plan.unrouted.length && plan.missingPrinterRoutes.length) {
+              setError(
+                t("kds.noPrinter", {
+                  items: plan.unrouted.map((item) => item.name).join(", "),
+                  stations: plan.missingPrinterRoutes
+                    .map((route) => route.stationName)
+                    .join(", "),
+                })
+              );
+            } else if (plan.unrouted.length) {
               setError(
                 t("roomOrders.unrouted", {
                   items: plan.unrouted.map((item) => item.name).join(", "),

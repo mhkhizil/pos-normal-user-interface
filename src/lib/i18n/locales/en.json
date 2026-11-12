@@ -1964,6 +1964,7 @@
     "guests": "{{count}} guests",
     "sentBy": "Sent by {{name}}",
     "sentFromTablet": "Sent from {{device}}",
+    "noPrinter": "Did not print: {{items}}. No printer is connected for {{stations}}. The order is saved. Check that printer, then print again.",
     "printFailed": "Sent to the kitchen, but the kitchen slip did not print: {{error}}",
     "roomTablet": "room tablet",
     "seat": "Seat {{seat}}",
