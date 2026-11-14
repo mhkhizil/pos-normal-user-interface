@@ -145,8 +145,7 @@ const resolveLineCatalog = (item: Record<string, unknown>) => {
     variantName:
       asHumanName(item.variantName) ||
       variantOptionsName({
-        // The saved variant's name, else the options it was sold as.
-        variantName: nestedName(variant, ["name", "variantName", "variantSku"]),
+        variantName: nestedName(variant, ["name", "variantName"]),
         matrixOptions:
           asRecord(variant?.matrixOptions) || asRecord(item.matrixOptions),
       }) ||

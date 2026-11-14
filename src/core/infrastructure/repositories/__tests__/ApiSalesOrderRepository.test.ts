@@ -127,6 +127,7 @@ describe("ApiSalesOrderRepository", () => {
       productName: "Tea",
       sku: "TEA-L",
     });
+    expect(lines.lines[0].variantName).toBeUndefined();
   });
 
   it("names a line's variant by its options when no variant name was saved", async () => {
