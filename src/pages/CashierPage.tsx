@@ -89,6 +89,7 @@ import {
 } from "@/lib/pos/tableSession";
 import {
   clearTableOrderIds,
+  countTableOrders,
   mergeTableOrderIds,
   readTableOrderIds,
   writeTableOrderIds,
@@ -1447,24 +1448,42 @@ export function CashierPage() {
     );
   }, []);
 
+  const closedTableOrderIds = useMemo(
+    () =>
+      new Set(
+        tableSessions
+          .filter((session) => !isOpenTableSession(session))
+          .map((session) => session.salesOrderId)
+          .filter((id): id is string => Boolean(id))
+      ),
+    [tableSessions]
+  );
+
   const bindOrdersToTable = useCallback(
     async (tableId: string, primaryOrderId: string) => {
-      const orderIds = mergeTableOrderIds(tableId, primaryOrderId);
+      const orderIds = mergeTableOrderIds(
+        tableId,
+        primaryOrderId,
+        [],
+        closedTableOrderIds
+      );
       setActiveTableId(tableId);
       setTableOrderIds(orderIds);
       setSelectedMergeOrderIds([]);
       await refreshMultiOrderLines(orderIds);
       return orderIds;
     },
-    [refreshMultiOrderLines]
+    [closedTableOrderIds, refreshMultiOrderLines]
   );
 
   const getTableOrderCount = useCallback(
-    (tableId: string) => {
-      if (tableId === activeTableId) return tableOrderIds.length;
-      return readTableOrderIds(tableId).length;
-    },
-    [activeTableId, tableOrderIds.length]
+    (tableId: string) =>
+      countTableOrders(
+        tableId === activeTableId ? tableOrderIds : readTableOrderIds(tableId),
+        findOpenTableSession(tableSessions, tableId)?.salesOrderId,
+        closedTableOrderIds
+      ),
+    [activeTableId, closedTableOrderIds, tableOrderIds, tableSessions]
   );
 
   const requiresTableAssignment =

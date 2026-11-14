@@ -31,13 +31,35 @@ export const writeTableOrderIds = (tableId: string, orderIds: string[]) => {
 export const mergeTableOrderIds = (
   tableId: string,
   primaryOrderId: string,
-  extraIds: string[] = []
+  extraIds: string[] = [],
+  closedOrderIds: ReadonlySet<string> = new Set()
 ): string[] => {
+  // A list that starts with another order is from guests who have since paid,
+  // perhaps on another till; the table's orders start again from this one.
+  const stored = readTableOrderIds(tableId);
+  const kept = (stored[0] === primaryOrderId ? stored : []).filter(
+    (id) => !closedOrderIds.has(id)
+  );
   const merged = Array.from(
-    new Set([primaryOrderId, ...readTableOrderIds(tableId), ...extraIds].filter(Boolean))
+    new Set([primaryOrderId, ...kept, ...extraIds].filter(Boolean))
   );
   writeTableOrderIds(tableId, merged);
   return merged;
+};
+
+/**
+ * How many orders a table has, going by the server's open session for it: none
+ * when the server has the table free, and only the till's own list when that
+ * list is for the guests sitting there now, less orders whose session closed.
+ */
+export const countTableOrders = (
+  orderIds: string[],
+  openOrderId?: string | null,
+  closedOrderIds: ReadonlySet<string> = new Set()
+): number => {
+  if (!openOrderId) return 0;
+  if (orderIds[0] !== openOrderId) return 1;
+  return orderIds.filter((id) => !closedOrderIds.has(id)).length;
 };
 
 export const clearTableOrderIds = (tableId: string) => {

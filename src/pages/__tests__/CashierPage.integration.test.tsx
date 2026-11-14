@@ -360,6 +360,7 @@ describe("CashierPage integration", () => {
     salesOrdersState = [order];
     diningTablesState = [table];
     tableSessionsState = [session];
+    sessionStorage.clear();
     mocks.getLatestSessionByTableId.mockReturnValue(session);
     productState = product;
     venueSettingsState = {
@@ -1587,6 +1588,53 @@ describe("CashierPage integration", () => {
       expect(mocks.updateTableSessionState).toHaveBeenCalledWith("session-1", {
         sessionState: "SERVED",
       });
+    });
+  });
+
+  describe("table order count", () => {
+    const renderBoard = () =>
+      render(
+        <MemoryRouter initialEntries={["/cashier?view=orders"]}>
+          <CashierPage />
+        </MemoryRouter>
+      );
+    const paidSession = {
+      ...session,
+      id: "session-paid",
+      salesOrderId: "order-paid",
+      closedAt: "2026-08-28T12:00:00Z",
+      sessionState: "CLOSED",
+    };
+
+    it("shows two orders for a table's own second order", () => {
+      writeTableOrderIds("table-1", ["order-1", "order-2"]);
+      renderBoard();
+
+      expect(screen.getByText("cashier.multiOrder.orderCount")).toBeInTheDocument();
+    });
+
+    it("leaves out an order that was paid on another till", () => {
+      tableSessionsState = [session, paidSession];
+      writeTableOrderIds("table-1", ["order-1", "order-paid"]);
+      renderBoard();
+
+      expect(screen.queryByText("cashier.multiOrder.orderCount")).not.toBeInTheDocument();
+    });
+
+    it("ignores a list kept for earlier guests at the table", () => {
+      writeTableOrderIds("table-1", ["order-paid", "order-old-extra"]);
+      renderBoard();
+
+      expect(screen.queryByText("cashier.multiOrder.orderCount")).not.toBeInTheDocument();
+    });
+
+    it("shows no orders on a table the server has free", () => {
+      diningTablesState = [{ ...table, status: "AVAILABLE" }];
+      tableSessionsState = [paidSession];
+      writeTableOrderIds("table-1", ["order-paid", "order-2"]);
+      renderBoard();
+
+      expect(screen.queryByText("cashier.multiOrder.orderCount")).not.toBeInTheDocument();
     });
   });
 
