@@ -144,6 +144,8 @@ let selectedOrderLinesState: Array<
 let selectedOrderState: typeof order | null = order;
 let activeServiceTypeState = "TABLE";
 let salesOrdersState: Array<typeof order> = [order];
+let diningTablesState: Array<typeof table> = [table];
+let tableSessionsState: Array<typeof session> = [session];
 let productState = product;
 let venueSettingsState = {
   defaultTaxRate: null,
@@ -278,8 +280,8 @@ vi.mock("@/core/presentation/hooks/useCashier", () => ({
       { id: "credit", tenantId: "tenant-1", name: "House credit", kind: "CUSTOMER_CREDIT" },
     ],
     diningZones: [],
-    diningTables: [table],
-    tableSessions: [session],
+    diningTables: diningTablesState,
+    tableSessions: tableSessionsState,
     activeServiceType: activeServiceTypeState,
     setActiveServiceType: vi.fn(),
     activeLocationId: "location-1",
@@ -356,6 +358,8 @@ describe("CashierPage integration", () => {
     selectedOrderState = order;
     activeServiceTypeState = "TABLE";
     salesOrdersState = [order];
+    diningTablesState = [table];
+    tableSessionsState = [session];
     mocks.getLatestSessionByTableId.mockReturnValue(session);
     productState = product;
     venueSettingsState = {
@@ -1584,6 +1588,33 @@ describe("CashierPage integration", () => {
         sessionState: "SERVED",
       });
     });
+  });
+
+  it("opens a free table once when it is tapped twice", async () => {
+    diningTablesState = [{ ...table, status: "AVAILABLE" }];
+    tableSessionsState = [];
+    let finishOpen: (value: typeof session) => void = () => {};
+    mocks.openTableSession.mockImplementation(
+      () => new Promise((resolve) => (finishOpen = resolve))
+    );
+    render(
+      <MemoryRouter initialEntries={["/cashier?view=orders"]}>
+        <CashierPage />
+      </MemoryRouter>
+    );
+
+    const tile = screen.getByRole("button", { name: /^T1/ });
+    fireEvent.click(tile);
+    fireEvent.click(tile);
+
+    await waitFor(() => expect(mocks.openTableSession).toHaveBeenCalled());
+    finishOpen(session);
+    await waitFor(() => {
+      expect(
+        screen.getByPlaceholderText("cashier.productMenu.search")
+      ).toBeInTheDocument();
+    });
+    expect(mocks.openTableSession).toHaveBeenCalledTimes(1);
   });
 
   it("opens an occupied table's existing order instead of creating a session", async () => {

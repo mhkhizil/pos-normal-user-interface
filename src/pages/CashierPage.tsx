@@ -257,6 +257,7 @@ export function CashierPage() {
   const [billGeneration, setBillGeneration] = useState(0);
   const [isConfirmingPayment, setIsConfirmingPayment] = useState(false);
   const confirmingPaymentRef = useRef(false);
+  const tableTapRef = useRef(false);
   const [printBillOnConfirm, setPrintBillOnConfirm] = useState(readPrintBillOnConfirm);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const paymentInputRef = useRef<HTMLInputElement>(null);
@@ -1576,7 +1577,7 @@ export function CashierPage() {
     }
   };
 
-  const handleTableTap = async (tableId: string) => {
+  const openTappedTable = async (tableId: string) => {
     setLocalError(null);
     setNotice(null);
     const pendingLines = isDirectCheckoutMode ? [...directCartLines] : [];
@@ -1692,6 +1693,17 @@ export function CashierPage() {
           ? t("cashier.errors.tooManyRequests")
           : message || t("cashier.errors.openTable")
       );
+    }
+  };
+
+  // A second tap while a table is still opening would open it twice.
+  const handleTableTap = async (tableId: string) => {
+    if (tableTapRef.current) return;
+    tableTapRef.current = true;
+    try {
+      await openTappedTable(tableId);
+    } finally {
+      tableTapRef.current = false;
     }
   };
 
